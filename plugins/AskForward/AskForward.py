@@ -51,6 +51,8 @@ class AskForward(Plugins):
 
     @plugin_main(check_call_word=False, require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
+        if event.message.startswith("Theresa "):
+            return
         broadcast_target_group: int = self.config.getint("broadcast_target_group")
         answer_group: int = self.config.getint("answer_group")
         ask_groups: list[int] = list(map(int, self.config.get("ask_groups").split(",")))

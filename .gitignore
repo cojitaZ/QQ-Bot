@@ -2,6 +2,7 @@
 __pycache__/
 temp/
 /plugins/TheresaLuck/
+/plugins/TheresaCardSP/
 /plugins/*/data/
 .venv/
 .ruff_cache/

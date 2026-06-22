@@ -28,7 +28,7 @@ class TheresaGoodMorning(Plugins):
         self.init_status()
 
         self.user_cooldown = {}  # 用户冷却时间记录字典
-        self.cooldown_time = 1  # 冷却时间（秒）
+        self.cooldown_time = 60  # 冷却时间（秒）
 
     @plugin_main(call_word=["Theresa 晚安", "Theresa 早安"])
     async def main(self, event: GroupMessageEvent, debug: bool):
