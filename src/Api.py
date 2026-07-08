@@ -195,7 +195,7 @@ class Api:
         @property
         def client(self) -> AsyncClient:
             if self._client is None or self._client.is_closed:
-                self._client = AsyncClient(timeout=self.timeout)
+                self._client = AsyncClient(timeout=self.timeout,trust_env=False)
             return self._client
 
         async def aclose(self) -> None:
