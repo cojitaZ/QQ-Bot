@@ -138,6 +138,7 @@ class Bot:
                 f"{self.database_username}:{self.database_passwd}@{self.database_address}/{self.database_name}",
                 poolclass=NullPool,
             )
+            self.api.get_database(self.database)
             Log.info("成功连接到bot数据库")
         except Exception as e:
             Log.error(f"连接到数据库时失败：{e}")

@@ -6,18 +6,22 @@ from httpx import AsyncClient, Timeout
 from utils.CQHelper import CQHelper
 from utils.CQType import Forward
 
+from sqlalchemy import BigInteger, Column, DateTime, Text, desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import declarative_base, sessionmaker
 
+Base = declarative_base()
 class Api:
     def __init__(self, server_address):
         self.bot_api_address = f"http://{server_address}/"
-
+        self.database = None
         # 传递Api类的实例引用
         self.botSelfInfo: Api.BotSelfInfo = self.BotSelfInfo(self)
         self.privateService: Api.PrivateService = self.PrivateService(self)
         self.groupService: Api.GroupService = self.GroupService(self)
         self.messageService: Api.MessageService = self.MessageService(self)
         self.asyncService: Api.AsyncService = self.AsyncService(self)
-
+        self.sqlService : Api.SQLService =self.SQLService(self)
     class BotSelfInfo:
         def __init__(self, api_instance):
             self.api: Api = api_instance  # 保存对Api类实例的引用
@@ -281,3 +285,65 @@ class Api:
                     msg=msg,
                 )
             return return_dict.message
+    def get_database(self,database):
+        self.database=database
+    class SQLService:
+        class SQLerror(BaseException):
+            def __init__(self,msg):
+                self.msg=msg
+
+        class Message(Base):
+            __tablename__ = "messages"
+            id = Column(BigInteger, primary_key=True, autoincrement=True)
+            user_id = Column(BigInteger, nullable=False)
+            group_id = Column(BigInteger, nullable=False)
+            msg = Column(Text, nullable=False)
+            send_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+            msg_id = Column(BigInteger, nullable=False, default=0)
+            user_nickname = Column(Text, nullable=False, default=" ")
+            user_card = Column(Text, nullable=False, default=" ")
+
+        def __init__(self,api_instance):
+            self.api: Api = api_instance
+            self.session_factory = sessionmaker(
+            bind=self.api.database, class_=AsyncSession, expire_on_commit=False
+            )
+        async def get_content_from_db(self,content_length:int,mode:dict)->list:
+            content=[]
+            if mode["type"]=="all":
+                stmt=(select(self.Message)
+                      .order_by(desc(self.Message.send_time))
+                      )
+            elif mode["type"]=="smo":
+                # someone
+                stmt=(select(self.Message)
+                      .where(self.Message.user_id==mode["user_id"])
+                      .order_by(desc(self.Message.send_time))
+                      .limit(content_length)
+                      )
+            elif mode["type"]=="group":
+                stmt=(select(self.Message)
+                      .where(self.Message.group_id==mode["group_id"])
+                      .order_by(desc(self.Message.send_time))
+                      .limit(content_length)
+                      )
+            else:
+                raise self.SQLerror("未定义的类型")
+            async with self.session_factory() as session:
+                result = await session.execute(stmt)
+                rows = result.scalars().all()
+            for row in rows:
+                temp={
+                    "id":row.id,
+                    "user_id":row.user_id,
+                    "group_id":row.group_id,
+                    "msg":row.msg,
+                    "send_time":row.send_time,
+                    "msg_id":row.msg_id,
+                    "user_nickname":row.user_nickname,
+                    "user_card":row.user_card
+                }
+                content.append(temp)
+
+            content=content[::-1] # 时间由旧到新
+            return content
