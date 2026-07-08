@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 
 from . import Search
 
-
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off"}
 
@@ -104,7 +103,9 @@ class Google(Search):
         visual_search_expired = self._is_visual_search_expired_page(page_text)
         self.debug_info["visual_search_expired"] = visual_search_expired
         self.debug_info["zero_results"] = (
-            exact_result_count == 0 and lens_result_count == 0 and self._is_zero_results_page(page_text)
+            exact_result_count == 0
+            and lens_result_count == 0
+            and self._is_zero_results_page(page_text)
         )
 
         self.result_list = []
@@ -809,14 +810,20 @@ class Google(Search):
     def _has_active_exact_tab(self, soup: BeautifulSoup) -> bool:
         """从 HTML 中判断 Exact matches 标签是否处于激活状态。"""
         labels = ("Exact matches", "完全匹配")
-        for text_node in soup.find_all(string=lambda value: value and any(label in value for label in labels)):
+        for text_node in soup.find_all(
+            string=lambda value: value and any(label in value for label in labels)
+        ):
             node = text_node.parent
             for _ in range(6):
                 if not node:
                     break
                 if node.get("aria-current") == "page":
                     return True
-                if node.name == "a" and "C6AK7c" in (node.get("class") or []) and not node.get("href"):
+                if (
+                    node.name == "a"
+                    and "C6AK7c" in (node.get("class") or [])
+                    and not node.get("href")
+                ):
                     return True
                 node = node.parent
         return False
@@ -1153,7 +1160,7 @@ class Google(Search):
         text = self._clean_text(link.get_text(" ", strip=True))
         source = self._source_from_lens_card(link)
         if source and text.startswith(source):
-            text = text[len(source):].strip()
+            text = text[len(source) :].strip()
         return text[:180]
 
     def _title_from_exact_card(self, link, href: str) -> str:
@@ -1222,7 +1229,10 @@ class Google(Search):
             return True
 
         google_asset_hosts = ("gstatic.com", "googleusercontent.com")
-        return any(host == google_host or host.endswith(f".{google_host}") for google_host in google_asset_hosts)
+        return any(
+            host == google_host or host.endswith(f".{google_host}")
+            for google_host in google_asset_hosts
+        )
 
     def _normalize_result_key(self, url: str) -> str:
         """归一化结果 URL，用于去重比较。"""
