@@ -130,3 +130,9 @@ enable = True
 [GroupSum]
 enable = False
 max_length = 1000
+
+[A_Search]
+enable = False
+
+[A_Repeater]
+enable = False
