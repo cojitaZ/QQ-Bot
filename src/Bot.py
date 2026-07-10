@@ -77,6 +77,8 @@ class Bot:
             "webhook_response_group": self.config.getint(
                 "Init", "webhook_response_group", fallback=None
             ),
+            "gitea_api_url": self.config.get("Gitea", "api_url", fallback=None),
+            "gitea_api_token": self.config.get("Gitea", "api_token", fallback=None),
         }
 
         # 检查哪些关键配置项是空的
@@ -100,6 +102,8 @@ class Bot:
         self.enable_webhook_handler: bool = required_configs["enable_webhook_handler"]
         self.webhook_handler_address: str = required_configs["webhook_handler_address"]
         self.webhook_response_group: int = required_configs["webhook_response_group"]
+        self.gitea_api_url: str = required_configs["gitea_api_url"]
+        self.gitea_api_token: str = required_configs["gitea_api_token"]
         Log.info("成功加载配置文件")
         Log.info("加载的bot初始化配置信息如下：")
         for item in required_configs.items():
@@ -286,21 +290,35 @@ class Bot:
         # Log.info(f"启动 web controller 服务 {web_ip}:{web_port}")
         # web_server = asyncio.create_task(web_controller.run(web_ip, int(web_port)))
         # Log.info("web controller 服务启动成功！")
+
+        webhook_handler = None
         if self.enable_webhook_handler:
-            webhook_handler = WebhookHandler(self.api, self.webhook_response_group)
+            webhook_handler = WebhookHandler(
+                self.api,
+                self.webhook_response_group,
+                self.gitea_api_url,
+                self.gitea_api_token,
+            )
             webhook_ip, webhook_port = self.webhook_handler_address.split(":")
             Log.info(f"启动 Webhook Handler 服务 {self.webhook_handler_address}")
             webhook_server = asyncio.create_task(webhook_handler.run(webhook_ip, int(webhook_port)))
-            try:
-                await asyncio.gather(event_server, webhook_server)
-            finally:
-                await event.stop()
+
+            def _on_webhook_done(task: asyncio.Task) -> None:
+                try:
+                    exc = task.exception()
+                except asyncio.CancelledError:
+                    return
+                if exc is not None:
+                    Log.error(f"Webhook Handler 服务异常退出: {exc}")
+
+            webhook_server.add_done_callback(_on_webhook_done)
+
+        try:
+            await event_server
+        finally:
+            await event.stop()
+            if webhook_handler is not None:
                 await webhook_handler.stop()
-        else:
-            try:
-                await event_server
-            finally:
-                await event.stop()
 
 
 def check_config_files(configs_path: str) -> None:
