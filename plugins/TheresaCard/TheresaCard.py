@@ -84,6 +84,9 @@ class TheresaCard(Plugins):
         strict_candidates: list[tuple[int, int, str, str]] = []
         not_entered: dict[int, str] = {}
 
+        seen_stu_ids: dict[int, int] = {}
+        repeated_stu_ids: dict[int, list[int]] = {}
+
         # 执行检查
         for member in group_member_list:
             user_id = member["user_id"]
@@ -106,9 +109,18 @@ class TheresaCard(Plugins):
 
                 not_allowed_ids.append(user_id)
                 not_allowed_cards.append(card)
-            elif strict_flag or unenter_flag:
-                if user_id not in self.bot.assistant_list:
-                    strict_candidates.append((user_id, stu_id, name, card))
+            else:
+                if stu_id in seen_stu_ids:
+                    if stu_id in repeated_stu_ids:
+                        repeated_stu_ids[stu_id].append(user_id)
+                    else:
+                        repeated_stu_ids[stu_id] = [seen_stu_ids[stu_id], user_id]
+                else:
+                    seen_stu_ids[stu_id] = user_id
+
+                if strict_flag or unenter_flag:
+                    if user_id not in self.bot.assistant_list:
+                        strict_candidates.append((user_id, stu_id, name, card))
 
         if strict_flag or unenter_flag:
             stu_ids = {stu_id for _, stu_id, _, _ in strict_candidates}
@@ -156,6 +168,16 @@ class TheresaCard(Plugins):
         else:
             message = "所有群成员名片格式均符合要求"
             self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
+
+        if repeated_stu_ids:
+            self.api.groupService.send_group_msg(
+                group_id=event.group_id,
+                message="以下学号重复：\n"
+                + "\n".join(
+                    f"{stu_id}:\n{'\n'.join(f'{At(qq=uid)}' for uid in uids)}"
+                    for stu_id, uids in repeated_stu_ids.items()
+                ),
+            )
 
         if unenter_flag:
             if strict_candidates:
