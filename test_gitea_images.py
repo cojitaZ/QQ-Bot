@@ -1,5 +1,7 @@
 """Gitea 评论附件 / markdown 图片解析的单元测试。"""
 
+import pytest
+
 from src.gitea.GiteaEventFormatter import (
     FileSegment,
     ForwardPlan,
@@ -13,7 +15,8 @@ from src.gitea.GiteaEventFormatter import (
 from src.gitea.Models import Attachment
 
 NOW = "2026-04-29T12:00:00Z"
-REPO_HTML_URL = "https://gitea.example.com/org/repo"
+GITEA_BASE_URL = "https://gitea.example.com"
+REPO_HTML_URL = f"{GITEA_BASE_URL}/org/repo"
 
 
 def _attachment(name: str, url: str, size: int = 10) -> Attachment:
@@ -33,7 +36,7 @@ def _attachment(name: str, url: str, size: int = 10) -> Attachment:
 def test_parse_comment_segments_preserves_original_order():
     """body 中文字与图片的交替顺序应被保留。"""
     body = "hello ![alt text](/attachments/abc.png) world"
-    segments = _parse_comment_segments(body, [], REPO_HTML_URL)
+    segments = _parse_comment_segments(body, [], REPO_HTML_URL, GITEA_BASE_URL)
 
     assert len(segments) == 3
     assert isinstance(segments[0], TextSegment)
@@ -49,7 +52,7 @@ def test_parse_comment_segments_image_assets_appended_with_dedup():
     """所有附件都作为 FileSegment 追加（图片由 body markdown 处理）。"""
     body = "see ![pic](/attachments/uuid)"
     assets = [_attachment("pic.png", "https://gitea.example.com/attachments/uuid")]
-    segments = _parse_comment_segments(body, assets, REPO_HTML_URL)
+    segments = _parse_comment_segments(body, assets, REPO_HTML_URL, GITEA_BASE_URL)
 
     # body 中的内联图仍是 ImageSegment，assets 中的图片变成 FileSegment
     images = [s for s in segments if isinstance(s, ImageSegment)]
@@ -68,7 +71,7 @@ def test_parse_comment_segments_non_image_assets_as_files():
         _attachment("report.pdf", "https://gitea.example.com/attachments/pdf", size=2048),
         _attachment("shot.png", "https://gitea.example.com/attachments/shot"),
     ]
-    segments = _parse_comment_segments(body, assets, REPO_HTML_URL)
+    segments = _parse_comment_segments(body, assets, REPO_HTML_URL, GITEA_BASE_URL)
 
     files = [s for s in segments if isinstance(s, FileSegment)]
     images = [s for s in segments if isinstance(s, ImageSegment)]
@@ -83,7 +86,7 @@ def test_parse_comment_segments_non_image_assets_as_files():
 def test_parse_comment_segments_multiple_inline_images():
     """多张内联图片保持与文本的交错顺序。"""
     body = "a ![1](a.png) b ![2](b.png) c"
-    segments = _parse_comment_segments(body, [], REPO_HTML_URL)
+    segments = _parse_comment_segments(body, [], REPO_HTML_URL, GITEA_BASE_URL)
 
     assert len(segments) == 5
     assert isinstance(segments[0], TextSegment) and segments[0].text == "a "
@@ -94,21 +97,42 @@ def test_parse_comment_segments_multiple_inline_images():
 
 
 def test_resolve_image_url_handles_absolute_relative_and_root_paths():
-    assert _resolve_image_url("https://other.com/x.png", REPO_HTML_URL) == "https://other.com/x.png"
     assert (
-        _resolve_image_url("/attachments/uuid", REPO_HTML_URL)
+        _resolve_image_url("https://other.com/x.png", REPO_HTML_URL, GITEA_BASE_URL)
+        == "https://other.com/x.png"
+    )
+    assert (
+        _resolve_image_url("/attachments/uuid", REPO_HTML_URL, GITEA_BASE_URL)
         == "https://gitea.example.com/attachments/uuid"
     )
     # urljoin 相对路径会替换 base 最后一段，符合 RFC 3986 规范
     assert (
-        _resolve_image_url("raw/main/img.png", REPO_HTML_URL)
+        _resolve_image_url("raw/main/img.png", REPO_HTML_URL, GITEA_BASE_URL)
         == "https://gitea.example.com/org/raw/main/img.png"
     )
     # 仓库内 raw 路径通常以 /org/repo/ 开头，使用站点绝对路径
     assert (
-        _resolve_image_url("/org/repo/raw/main/img.png", REPO_HTML_URL)
+        _resolve_image_url("/org/repo/raw/main/img.png", REPO_HTML_URL, GITEA_BASE_URL)
         == "https://gitea.example.com/org/repo/raw/main/img.png"
     )
+
+
+def test_resolve_image_url_preserves_gitea_sub_path_for_root_relative_attachment():
+    """Gitea webhook 原始 Markdown 的 /attachments 链接必须保留站点子路径。"""
+    gitea_base_url = "http://10.80.42.185/tjhlp"
+    repo_html_url = f"{gitea_base_url}/owner/repo"
+
+    assert (
+        _resolve_image_url(
+            "/attachments/0dd501f5-b9eb-4c30-982f-31527b521d69", repo_html_url, gitea_base_url
+        )
+        == "http://10.80.42.185/tjhlp/attachments/0dd501f5-b9eb-4c30-982f-31527b521d69"
+    )
+
+
+def test_gitea_event_formatter_requires_base_url():
+    with pytest.raises(ValueError, match="Gitea 基础地址不能为空"):
+        GiteaEventFormatter("")
 
 
 def test_extract_images_collects_all_image_segments():
@@ -124,9 +148,10 @@ def test_extract_images_collects_all_image_segments():
     assert images[1].url == "y.png"
 
 
-def test_issue_comment_plain_returns_text_and_image_list():
+def test_issue_comment_plain_resolves_root_relative_image_with_configured_sub_path():
     from src.gitea.Models import GiteaIssueCommentEvent
 
+    gitea_base_url = "https://gitea.example.com/tjhlp"
     payload = {
         "action": "created",
         "issue": {
@@ -162,17 +187,17 @@ def test_issue_comment_plain_returns_text_and_image_list():
             "full_name": "org/repo",
             "private": True,
             "fork": False,
-            "html_url": REPO_HTML_URL,
+            "html_url": f"{gitea_base_url}/org/repo",
         },
         "sender": {"id": 1, "login": "alice"},
         "is_pull": False,
     }
     event = GiteaIssueCommentEvent.model_validate(payload)
-    text, images = GiteaEventFormatter().issue_comment_plain(event, "issue_comment")
+    text, images = GiteaEventFormatter(gitea_base_url).issue_comment_plain(event, "issue_comment")
 
     assert "[图片: x]" in text
     assert len(images) == 1
-    assert images[0].url == "https://gitea.example.com/attachments/abc.png"
+    assert images[0].url == f"{gitea_base_url}/attachments/abc.png"
 
 
 def test_issue_comment_forward_returns_forwardplan_with_segments():
@@ -234,7 +259,7 @@ def test_issue_comment_forward_returns_forwardplan_with_segments():
             }
         )
     ]
-    plan = GiteaEventFormatter().issue_comment_forward(event, comments)
+    plan = GiteaEventFormatter(GITEA_BASE_URL).issue_comment_forward(event, comments)
 
     assert isinstance(plan, ForwardPlan)
     # 节点1: issue 正文

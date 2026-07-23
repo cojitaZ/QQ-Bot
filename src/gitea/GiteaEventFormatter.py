@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass, field
-from typing import Any
 from urllib.parse import urljoin
 
 from src.gitea.Models import (
@@ -12,7 +11,6 @@ from src.gitea.Models import (
     GiteaWebhookEvent,
     Issue,
 )
-from utils.CQType import Forward
 from utils.TextUtils import format_size
 
 
@@ -89,14 +87,18 @@ def _attachment_lines(attachments: list[Attachment]) -> list[str]:
     return lines
 
 
-def _resolve_image_url(url: str, repo_html_url: str) -> str:
-    """将 markdown 图片 URL 规范化为绝对 URL：绝对 URL 原样返回，相对路径拼接仓库根地址。"""
+def _resolve_image_url(url: str, repo_html_url: str, gitea_base_url: str) -> str:
+    """将 Markdown 图片 URL 规范化为绝对 URL，并保留 Gitea 的站点子路径。"""
     if url.startswith(("http://", "https://")):
         return url
+    if url.startswith("/"):
+        return urljoin(gitea_base_url + "/", url.lstrip("/"))
     return urljoin(repo_html_url, url)
 
 
-def _parse_body_segments(body: str, repo_html_url: str) -> list[ContentSegment]:
+def _parse_body_segments(
+    body: str, repo_html_url: str, gitea_base_url: str
+) -> list[ContentSegment]:
     """把 body 按 markdown 图片切分为 TextSegment / ImageSegment 交替序列。"""
     segments: list[ContentSegment] = []
     body = body or ""
@@ -108,7 +110,7 @@ def _parse_body_segments(body: str, repo_html_url: str) -> list[ContentSegment]:
             segments.append(TextSegment(text=before))
 
         alt = m.group(1).strip()
-        url = _resolve_image_url(m.group(2).strip(), repo_html_url)
+        url = _resolve_image_url(m.group(2).strip(), repo_html_url, gitea_base_url)
         segments.append(ImageSegment(url=url, alt=alt))
         pos = m.end()
 
@@ -134,10 +136,13 @@ def _append_asset_segments(segments: list[ContentSegment], assets: list[Attachme
 
 
 def _parse_comment_segments(
-    body: str, assets: list[Attachment], repo_html_url: str
+    body: str,
+    assets: list[Attachment],
+    repo_html_url: str,
+    gitea_base_url: str,
 ) -> list[ContentSegment]:
     """解析评论正文与附件，生成有序段落列表。"""
-    segments = _parse_body_segments(body, repo_html_url)
+    segments = _parse_body_segments(body, repo_html_url, gitea_base_url)
     _append_asset_segments(segments, assets)
     return segments
 
@@ -173,6 +178,11 @@ def _issue_label_change_text(event: GiteaIssuesEvent) -> str:
 
 
 class GiteaEventFormatter:
+    def __init__(self, gitea_base_url: str):
+        self.gitea_base_url = gitea_base_url.strip().rstrip("/")
+        if not self.gitea_base_url:
+            raise ValueError("Gitea 基础地址不能为空")
+
     def plain_text(self, event: GiteaWebhookEvent, event_type: str = "") -> str:
         # case 的时候不会真正构造对象，只是判断是否匹配类型
         match event:
@@ -238,33 +248,28 @@ class GiteaEventFormatter:
             ]
         )
 
-    def issues_forward(self, event: GiteaIssuesEvent, event_type: str = "") -> list[dict[str, Any]]:
+    def issues_forward_plan(self, event: GiteaIssuesEvent, event_type: str = "") -> ForwardPlan:
+        """构建 issues 事件的合并转发计划，保留正文中的图片和附件顺序。"""
         event_name = event_type or "issues"
-        forward = Forward()
-
-        forward.add_node(
-            type="text",
-            sender_name="Gitea",
-            msg="\n".join(
-                [
-                    f"[Gitea] {event_name} #{event.number} {event.action} in {event.repository.full_name}",
-                    f"Title: {event.issue.title}",
-                    f"Labels: {_label_text(event)}",
-                    f"Author: {event.issue.original_author}",
-                ]
-            ),
+        header_text = "\n".join(
+            [
+                f"[Gitea] {event_name} #{event.number} {event.action} in {event.repository.full_name}",
+                f"Title: {event.issue.title}",
+                f"Labels: {_label_text(event)}",
+                f"Author: {_issue_author(event)}",
+            ]
         )
-        forward.add_node(
-            type="text",
-            sender_name="Gitea",
-            msg=event.issue.body or "(empty body)",
+        body_segments = _parse_comment_segments(
+            event.issue.body or "(empty body)",
+            event.issue.assets,
+            event.repository.html_url,
+            self.gitea_base_url,
         )
-        forward.add_node(
-            type="text",
-            sender_name="Gitea",
-            msg=f"url: {event.issue.html_url}",
+        return ForwardPlan(
+            header_text=header_text,
+            nodes=[ContentNode(sender_name="Gitea", segments=body_segments)],
+            url_text=f"url: {event.issue.html_url}",
         )
-        return forward.message
 
     def issue_comment_plain(
         self, event: GiteaIssueCommentEvent, event_type: str = ""
@@ -275,7 +280,10 @@ class GiteaEventFormatter:
         """
         repo_html_url = event.repository.html_url
         segments = _parse_comment_segments(
-            event.comment.body or "", event.comment.assets, repo_html_url
+            event.comment.body or "",
+            event.comment.assets,
+            repo_html_url,
+            self.gitea_base_url,
         )
 
         # 生成纯文本摘要：将 segments 转为单一文本
@@ -321,7 +329,7 @@ class GiteaEventFormatter:
 
         # 节点1: issue 正文（也解析其内联图片）
         issue_segments = _parse_comment_segments(
-            event.issue.body or "(empty body)", [], repo_html_url
+            event.issue.body or "(empty body)", [], repo_html_url, self.gitea_base_url
         )
         nodes.append(ContentNode(sender_name="Gitea", segments=issue_segments))
 
@@ -329,7 +337,7 @@ class GiteaEventFormatter:
         for comment in comments:
             author = comment.original_author or comment.user.login
             segments = _parse_comment_segments(
-                comment.body or "(empty)", comment.assets, repo_html_url
+                comment.body or "(empty)", comment.assets, repo_html_url, self.gitea_base_url
             )
             nodes.append(ContentNode(sender_name=author, segments=segments))
 

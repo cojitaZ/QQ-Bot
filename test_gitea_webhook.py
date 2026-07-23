@@ -141,7 +141,7 @@ def test_parse_push_event_and_format_message():
     event = parse_gitea_event("push", push_payload())
 
     assert isinstance(event, GiteaPushEvent)
-    message = GiteaEventFormatter().plain_text(event, "push")
+    message = GiteaEventFormatter(GITEA_API_URL).plain_text(event, "push")
     assert "push in org/repo" in message
     assert "latest: abcdef12 Implement webhook by alice" in message
 
@@ -213,12 +213,11 @@ async def test_send_plain_text_failure_logs_error():
 
 
 @pytest.mark.asyncio
-async def test_issues_event_sends_three_node_forward_message():
-    """
-    issues 类事件应先发送一条摘要，再发送三条节点的合并转发消息。
-    """
+async def test_issues_event_sends_mixed_message_and_three_node_forward_message():
+    """issues 事件应发送含正文的混合消息，以及图片/附件可用的三节点合并转发。"""
     payload = issues_payload()
     payload["issue"]["body"] = "long body\n" + ("x" * 600)
+    payload["issue"]["assets"] = []
     event = GiteaIssuesEvent.model_validate(payload)
     api = Mock()
     api.asyncService = AsyncMock()
@@ -227,10 +226,20 @@ async def test_issues_event_sends_three_node_forward_message():
         event, "issues", EVENT_CONFIG["issues"]
     )
 
-    api.asyncService.send_group_msg.assert_called_once_with(
-        group_id=123,
-        message="[Gitea] issues #1 opened in org/repo",
-    )
+    api.asyncService.send_group_msg.assert_called_once()
+    plain_message = api.asyncService.send_group_msg.call_args.kwargs["message"]
+    assert plain_message == [
+        {
+            "type": "text",
+            "data": {"text": "[Gitea] issues #1 opened in org/repo\nFix webhook"},
+        },
+        {"type": "text", "data": {"text": "long body\n" + ("x" * 600) + "\n\n"}},
+        {
+            "type": "text",
+            "data": {"text": "\nurl: https://gitea.example.com/org/repo/issues/1"},
+        },
+    ]
+
     api.asyncService.send_group_forward_msg.assert_called_once()
     forward_message = api.asyncService.send_group_forward_msg.call_args.kwargs["forward_message"]
 
@@ -242,8 +251,11 @@ async def test_issues_event_sends_three_node_forward_message():
     )
     assert "Title: Fix webhook" in forward_message[0]["data"]["content"][0]["data"]["text"]
     assert "Labels: bug" in forward_message[0]["data"]["content"][0]["data"]["text"]
-    assert "Author: None" in forward_message[0]["data"]["content"][0]["data"]["text"]
-    assert "long body\n" + ("x" * 600) == forward_message[1]["data"]["content"][0]["data"]["text"]
+    assert "Author: alice" in forward_message[0]["data"]["content"][0]["data"]["text"]
+    assert (
+        forward_message[1]["data"]["content"][0]["data"]["text"]
+        == "long body\n" + ("x" * 600) + "\n\n"
+    )
     assert (
         "url: https://gitea.example.com/org/repo/issues/1"
         == forward_message[2]["data"]["content"][0]["data"]["text"]
@@ -300,7 +312,7 @@ def test_issue_label_uses_issue_payload_model():
     event = parse_gitea_event("issue_label", issues_payload())
 
     assert isinstance(event, GiteaIssuesEvent)
-    message = GiteaEventFormatter().plain_text(event, "issue_label")
+    message = GiteaEventFormatter(GITEA_API_URL).plain_text(event, "issue_label")
     assert "issue_label #1 opened in org/repo" in message
 
 
@@ -341,7 +353,7 @@ def test_parse_issue_comment_event():
     event = parse_gitea_event("issue_comment", issue_comment_payload())
 
     assert isinstance(event, GiteaIssueCommentEvent)
-    message = GiteaEventFormatter().plain_text(event, "issue_comment")
+    message = GiteaEventFormatter(GITEA_API_URL).plain_text(event, "issue_comment")
     assert "issue_comment on issue #1 created in org/repo" in message
     assert "comment body" in message
 
@@ -371,7 +383,7 @@ def test_issue_formatter_keeps_body_and_lists_attachments_separately():
     附件是独立 assets 列表，formatter 不改写正文，只额外列出附件 URL。
     """
     event = GiteaIssuesEvent.model_validate(issues_payload())
-    message = GiteaEventFormatter().issue_detail(event, "issues")
+    message = GiteaEventFormatter(GITEA_API_URL).issue_detail(event, "issues")
 
     assert "body ![img](/attachments/uuid)" in message
     assert "pic.png: https://gitea.example.com/attachments/uuid" in message
