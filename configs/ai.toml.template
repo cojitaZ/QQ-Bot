@@ -7,6 +7,11 @@ timeout_seconds = 60.0 # 可选参数
 base_url = "https://api.mnapi.com/v1"
 api_key = "<your-api-key>"
 
+[provider.tavily]
+api_key = "<your-api-key>"
+search.url = "https://api.tavily.com/search"
+extract.url = "https://api.tavily.com/extract"
+
 [profile.example]
 provider = "deepseek"
 model = "deepseek-v4-flash"
@@ -143,4 +148,36 @@ parameters.type = "object"
 parameters.properties.cmd.type = "string"
 parameters.properties.cmd.description = "The shell command to execute."
 parameters.required = ["cmd"]
+parameters.additionalProperties = false
+
+[tool.travily_search]
+name = "travily_search"
+strict = false
+description = "Search the web for information using the Travily API."
+parameters.type = "object"
+parameters.properties.query.type = "string"
+parameters.properties.query.description = "The search query to execute with Tavily."
+parameters.properties.chunks_per_source.type = "integer"
+parameters.properties.chunks_per_source.description = "Chunks are short content snippets (maximum 500 characterseach) pulled directly from the source. Use`chunks_per_source` to define the maximum number of relevant chunks returned per source and to control the `content` length. Chunks will appear in the `content` field as: `<chunk 1> [...] <chunk 2> [...] <chunk 3>`. Available only when `search_depth` is `advanced`.\ndefault: 3\nminimum: 1\nmaximum: 3"
+parameters.properties.max_results.type = "integer"
+parameters.properties.max_results.description = "The maximum number of search results to return.\ndefault: 5\nminimum: 0\nmaximum: 20"
+parameters.properties.topic.type = "string"
+parameters.properties.topic.description = "The category of the search.`news` is useful for retrieving real-time updates, particularly about politics, sports, and major current events covered by mainstream media sources. `general` is for broader, more general-purpose searches that may include a wide range of sources.\ndefault: general\nenum:\n- general\n- news\n- finance"
+parameters.properties.exact_match.type = "boolean"
+parameters.properties.exact_match.description = "Ensure that only search results containing the exact quoted phrase(s) in the query are returned, bypassing synonyms or semantic variations. Wrap target phrases in quotes within your query (e.g. `\"John Smith\" CEO Acme Corp`). Punctuation is typically ignored inside quotes.\ndefault: false"
+parameters.required = ["query"]
+parameters.additionalProperties = false
+
+[tool.travily_extract]
+name = "travily_extract"
+strict = false
+description = "Extract web page content from one or more specified URLs using the Tavily API."
+parameters.type = "object"
+parameters.properties.urls.type = "string"
+parameters.properties.urls.description = "The URL to extract content from."
+parameters.properties.query.type = "string"
+parameters.properties.query.description = "User intent for reranking extracted content chunks. When provided, chunks are reranked based on relevance to this query.\ndefault: null"
+parameters.properties.chunks_per_source.type = "integer"
+parameters.properties.chunks_per_source.description = "Chunks are short content snippets (maximum 500 characterseach) pulled directly from the source. Use`chunks_per_source` to define the maximum number of relevant chunks returned per source and to control the `content` length. Chunks will appear in the `content` field as: `<chunk 1> [...] <chunk 2> [...] <chunk 3>`. Available only when `search_depth` is `advanced`.\ndefault: 3\nminimum: 1\nmaximum: 5"
+parameters.required = ["urls"]
 parameters.additionalProperties = false

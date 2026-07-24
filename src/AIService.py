@@ -4,6 +4,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 
+import httpx
 import tomlkit
 from openai import AsyncOpenAI
 from openai._types import NotGiven, Omit, not_given, omit
@@ -50,7 +51,7 @@ class AIService:
             self._config = tomlkit.load(f)
         with open(persona_path, encoding="utf-8") as f:
             self.persona = f.read()
-        self.available_funcs = {
+        self.funcs = {
             "send_private_msg": api.privateService.send_private_msg,
             "get_group_member_list": api.groupService.get_group_member_list,
             "get_group_member_info": api.groupService.get_group_member_info,
@@ -59,6 +60,10 @@ class AIService:
             "get_group_info": api.groupService.get_group_info,
             "send_group_poke": api.groupService.send_group_poke,
             "shell": self.restricted_shell,
+        }
+        self.async_funcs = {
+            "travily_search": self.travily_search,
+            "travily_extract": self.travily_extract,
         }
         self.owner_id = owner_id
 
@@ -96,22 +101,29 @@ class AIService:
                     return response.choices[0].message.content or "[NO REPLY]"
 
                 for tool_call in tool_calls:
-                    if tool_call.function.name in self.available_funcs:
+                    if (
+                        tool_call.function.name in self.funcs
+                        or tool_call.function.name in self.async_funcs
+                    ):
                         Log.info(f"轮{turn + 1}调用工具：{tool_call.function.name}")
                         args = json.loads(tool_call.function.arguments)
                         if tool_call.function.name == "shell":
                             args["caller_id"] = caller_id
-                        result = self.available_funcs[tool_call.function.name](**args)
+                        if tool_call.function.name in self.funcs:
+                            result = self.funcs[tool_call.function.name](**args)
+                        else:
+                            result = await self.async_funcs[tool_call.function.name](**args)
                         Log.info(f"轮{turn + 1}工具调用结果：{result}")
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": f"{result}",
-                            }
-                        )
                     else:
                         Log.warning(f"轮{turn + 1}尝试调用的工具 {tool_call.function.name} 不存在")
+                        result = f"工具 {tool_call.function.name} 不存在"
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": f"{result}",
+                        }
+                    )
 
         except Exception as exc:
             raise AIProviderError(f"AI profile '{profile_name}' request failed: {exc}") from exc
@@ -172,6 +184,51 @@ class AIService:
             else "(None)\n"
         )
         return output
+
+    async def travily_search(
+        self,
+        query: str,
+        chunks_per_source: int = 3,
+        max_results: int = 5,
+        topic: str = "general",
+        exact_match: bool = False,
+    ) -> str:
+        url = self._config["provider"]["tavily"]["search"]["url"]
+        api_key = self._config["provider"]["tavily"]["api_key"]
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+        payload = {
+            "query": query,
+            "search_depth": "advanced",
+            "chunks_per_source": chunks_per_source,
+            "max_results": max_results,
+            "topic": topic,
+            "exact_match": exact_match,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                return response.text
+            else:
+                return f"Travily API Error: {response.status_code} - {response.text}"
+
+    async def travily_extract(
+        self, urls: str, query: str | None = None, chunks_per_source: int = 3
+    ) -> str:
+        url = self._config["provider"]["tavily"]["extract"]["url"]
+        api_key = self._config["provider"]["tavily"]["api_key"]
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+        payload = {
+            "urls": urls,
+            "query": query,
+            "extract_depth": "advanced",
+            "chunks_per_source": chunks_per_source,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                return response.text
+            else:
+                return f"Travily API Error: {response.status_code} - {response.text}"
 
     @staticmethod
     def _required_option(data: dict, option: str, section_name: str) -> str:
