@@ -163,6 +163,7 @@ class TheresaChat(Plugins):
                         "name": "time_info",
                     },
                 ],
+                caller_id=event.user_id,
             )
             if "[NO REPLY]" not in response:
                 # 更新冷却时间

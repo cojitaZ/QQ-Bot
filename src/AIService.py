@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import subprocess
 from dataclasses import dataclass
 
 import tomlkit
@@ -37,20 +38,36 @@ class AIProfile:
     reasoning_effort: str | Omit
     extra_body: dict | None
     tools: list[ChatCompletionToolUnionParam] | Omit
+    max_turns: int
     insert_persona: bool
 
 
 class AIService:
     """Loads OpenAI-compatible AI profiles and sends chat completion requests."""
 
-    def __init__(self, config_path: str, persona_path: str, api: Api):
+    def __init__(self, config_path: str, persona_path: str, api: Api, owner_id: int):
         with open(config_path, encoding="utf-8") as f:
             self._config = tomlkit.load(f)
         with open(persona_path, encoding="utf-8") as f:
             self.persona = f.read()
-        self.api = api
+        self.available_funcs = {
+            "send_private_msg": api.privateService.send_private_msg,
+            "get_group_member_list": api.groupService.get_group_member_list,
+            "get_group_member_info": api.groupService.get_group_member_info,
+            "set_group_ban": api.groupService.set_group_ban,
+            "set_group_kick": api.groupService.set_group_kick,
+            "get_group_info": api.groupService.get_group_info,
+            "send_group_poke": api.groupService.send_group_poke,
+            "shell": self.restricted_shell,
+        }
+        self.owner_id = owner_id
 
-    async def generate(self, profile_name: str, messages: list[ChatCompletionMessageParam]) -> str:
+    async def generate(
+        self,
+        profile_name: str,
+        messages: list[ChatCompletionMessageParam],
+        caller_id: int | None = None,
+    ) -> str:
         """Generate one text completion using a configured profile."""
         profile = self._get_profile(profile_name)
 
@@ -63,53 +80,39 @@ class AIService:
             timeout=profile.provider.timeout_seconds,
         )
         try:
-            response = await client.chat.completions.create(
-                model=profile.model,
-                messages=messages,
-                response_format=profile.response_format,
-                reasoning_effort=profile.reasoning_effort,
-                tools=profile.tools,
-                extra_body=profile.extra_body,
-            )
-            if response.choices:
-                # 以下内容待重做
-                Log.info(response)
-                tools_used = response.choices[0].message.tool_calls
-                if tools_used:
-                    messages.append(response.choices[0].message)
-                    for tool_call in tools_used:
-                        if tool_call.function.name == "set_group_ban":
-                            Log.info(f"{tool_call.function}")
-                            args = json.loads(tool_call.function.arguments)
-                            user_id = args["user_id"]
-                            group_id = args["group_id"]
-                            duration = args["duration"]
-                            result = self.api.groupService.set_group_ban(
-                                group_id=group_id, user_id=user_id, duration=duration
-                            )
-                            messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "content": f"{result}",
-                                }
-                            )
-                    if (
-                        response.choices[0].message.content is None
-                        or response.choices[0].message.content.strip() == ""
-                    ):
-                        response = await client.chat.completions.create(
-                            model=profile.model,
-                            messages=messages,
-                            response_format=profile.response_format,
-                            reasoning_effort=profile.reasoning_effort,
-                            extra_body=profile.extra_body,
+            for turn in range(profile.max_turns):
+                response = await client.chat.completions.create(
+                    model=profile.model,
+                    messages=messages,
+                    response_format=profile.response_format,
+                    reasoning_effort=profile.reasoning_effort,
+                    tools=profile.tools,
+                    extra_body=profile.extra_body,
+                )
+                messages.append(response.choices[0].message)
+                Log.info(f"轮{turn + 1}：{response}")
+                tool_calls = response.choices[0].message.tool_calls
+                if not tool_calls:
+                    return response.choices[0].message.content or "[NO REPLY]"
+
+                for tool_call in tool_calls:
+                    if tool_call.function.name in self.available_funcs:
+                        Log.info(f"轮{turn + 1}调用工具：{tool_call.function.name}")
+                        args = json.loads(tool_call.function.arguments)
+                        if tool_call.function.name == "shell":
+                            args["caller_id"] = caller_id
+                        result = self.available_funcs[tool_call.function.name](**args)
+                        Log.info(f"轮{turn + 1}工具调用结果：{result}")
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": f"{result}",
+                            }
                         )
-                        Log.info(response)
-                    # 以上内容待重做
-                return response.choices[0].message.content or "[NO REPLY]"
-            else:
-                return "[NO REPLY]"
+                    else:
+                        Log.warning(f"轮{turn + 1}尝试调用的工具 {tool_call.function.name} 不存在")
+
         except Exception as exc:
             raise AIProviderError(f"AI profile '{profile_name}' request failed: {exc}") from exc
 
@@ -129,6 +132,7 @@ class AIService:
             reasoning_effort=profile_dict.get("reasoning_effort", omit),
             extra_body=profile_dict.get("extra_body", None),
             tools=self._get_tool(profile_dict.get("tools", [])),
+            max_turns=profile_dict.get("max_turns", 5),
             insert_persona=profile_dict.get("insert_persona", False),
         )
 
@@ -155,6 +159,19 @@ class AIService:
                 raise AIConfigurationError(f"AI tool '{tool_name}' not found")
             tools.append({"type": "function", "function": self._config["tool"][tool_name]})
         return tools
+
+    def restricted_shell(self, cmd: str, caller_id: int) -> str:
+        if caller_id != self.owner_id:
+            return "The caller are not authorized to execute this command."
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        output = (
+            f"return code: {result.returncode}\n" + "stdout:\n{result.stdout}\n"
+            if result.stdout
+            else "(None)\n" + f"stderr:\n{result.stderr}\n"
+            if result.stderr
+            else "(None)\n"
+        )
+        return output
 
     @staticmethod
     def _required_option(data: dict, option: str, section_name: str) -> str:

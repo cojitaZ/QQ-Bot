@@ -14,6 +14,7 @@ response_format = {"type" = "json_object"} # 可选参数
 reasoning_effort = "xhigh" # 可选参数
 extra_body.thinking.type = "disabled" # 可选参数，用于 deepseek
 tools = ["set_group_ban"] # 可选参数
+max_turns = 5 # 可选参数，在使用 tools 时才有必要填写，默认 5
 insert_persona = false # 可选参数，默认 false
 
 [profile.default]
@@ -34,7 +35,8 @@ insert_persona = true
 [profile.chat]
 provider = "deepseek"
 model = "deepseek-v4-pro"
-tools = ["set_group_ban"]
+tools = ["send_private_msg", "get_group_member_list", "get_group_member_info", "set_group_ban", "set_group_kick", "get_group_info", "send_group_poke", "shell"]
+max_turns = 10
 insert_persona = true
 
 [profile.chat_face]
@@ -46,6 +48,44 @@ insert_persona = true
 [profile.image_simple]
 provider = "mnapi"
 model = "gemini-3-flash-preview"
+
+[tool.send_private_msg]
+name = "send_private_msg"
+strict = false
+description = "Send a private message to a user."
+parameters.type = "object"
+parameters.properties.user_id.type = "integer"
+parameters.properties.user_id.description = "The user ID of the recipient."
+parameters.properties.message.type = "string"
+parameters.properties.message.description = "The message content to send."
+parameters.required = ["user_id", "message"]
+parameters.additionalProperties = false
+
+[tool.get_group_member_list]
+name = "get_group_member_list"
+strict = false
+description = "Get the list of members in a group. Be careful when using this tool, as it may return a large amount of data."
+parameters.type = "object"
+parameters.properties.group_id.type = "integer"
+parameters.properties.group_id.description = "The group ID to retrieve members from."
+parameters.properties.no_cache.type = "boolean"
+parameters.properties.no_cache.description = "Whether to bypass the cache and fetch fresh data. Defaults to true."
+parameters.required = ["group_id"]
+parameters.additionalProperties = false
+
+[tool.get_group_member_info]
+name = "get_group_member_info"
+strict = false
+description = "Get information about a specific member in a group."
+parameters.type = "object"
+parameters.properties.group_id.type = "integer"
+parameters.properties.group_id.description = "The group ID where the member is located."
+parameters.properties.user_id.type = "integer"
+parameters.properties.user_id.description = "The user ID of the member to retrieve information for."
+parameters.properties.no_cache.type = "boolean"
+parameters.properties.no_cache.description = "Whether to bypass the cache and fetch fresh data. Defaults to true."
+parameters.required = ["group_id", "user_id"]
+parameters.additionalProperties = false
 
 [tool.set_group_ban]
 name = "set_group_ban"
@@ -59,4 +99,48 @@ parameters.properties.group_id.description = "The group ID where the ban will be
 parameters.properties.duration.type = "integer"
 parameters.properties.duration.description = "The duration of the ban in seconds. Must be in the range of 0 to 2592000."
 parameters.required = ["user_id", "group_id", "duration"]
+parameters.additionalProperties = false
+
+[tool.set_group_kick]
+name = "set_group_kick"
+strict = false
+description = "Kick a user from a group. You should prudently use this tool. Use this tool may cause serious consequences. ONLY USE THIS TOOL WHEN ADMINISTRATORS OR YOUR OWNER REQUESTS YOU TO DO SO."
+parameters.type = "object"
+parameters.properties.group_id.type = "integer"
+parameters.properties.group_id.description = "The group ID where the kick will be applied."
+parameters.properties.user_id.type = "integer"
+parameters.properties.user_id.description = "The user ID of the person to kick."
+parameters.required = ["group_id", "user_id"]
+parameters.additionalProperties = false
+
+[tool.get_group_info]
+name = "get_group_info"
+strict = false
+description = "Get information about a specific group."
+parameters.type = "object"
+parameters.properties.group_id.type = "integer"
+parameters.properties.group_id.description = "The group ID to retrieve information for."
+parameters.required = ["group_id"]
+parameters.additionalProperties = false
+
+[tool.send_group_poke]
+name = "send_group_poke"
+strict = false
+description = "Send a poke to a user in a group."
+parameters.type = "object"
+parameters.properties.group_id.type = "integer"
+parameters.properties.group_id.description = "The group ID where the poke will be sent."
+parameters.properties.user_id.type = "integer"
+parameters.properties.user_id.description = "The user ID of the person to poke."
+parameters.required = ["group_id", "user_id"]
+parameters.additionalProperties = false
+
+[tool.shell]
+name = "shell"
+strict = false
+description = "Execute a shell command on the server. This tool is restricted to the owner of the bot. You should prudently use this tool."
+parameters.type = "object"
+parameters.properties.cmd.type = "string"
+parameters.properties.cmd.description = "The shell command to execute."
+parameters.required = ["cmd"]
 parameters.additionalProperties = false
