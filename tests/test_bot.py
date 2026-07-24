@@ -8,7 +8,7 @@ import tomlkit
 
 from src.Bot import Bot
 
-base_path = os.path.dirname(os.path.abspath(__file__))
+base_path = os.path.dirname(os.path.dirname(__file__))
 configs_path = os.path.join(base_path, "configs")
 plugins_path = os.path.join(base_path, "plugins")
 plugins_config_path = os.path.join(configs_path, "plugins.toml")
