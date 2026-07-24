@@ -7,6 +7,10 @@ from colorama import Fore, Style, init
 # 初始化colorama以支持控制台彩色输出
 init(autoreset=True)
 
+logging.getLogger("sqlalchemy").setLevel(logging.CRITICAL)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.CRITICAL)
+logging.getLogger("sqlalchemy.orm").setLevel(logging.CRITICAL)
+
 
 # 控制台输出的彩色格式器
 class ColoredConsoleFormatter(logging.Formatter):

@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import sys
 from importlib import import_module
@@ -8,7 +7,6 @@ from shutil import copyfile
 
 import tomlkit
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.pool import NullPool
 
 from plugins import Plugins
 
@@ -17,11 +15,6 @@ from .Api import Api
 from .EventController import Event
 from .PrintLog import Log
 from .webhook_handler.WebhookHandler import WebhookHandler
-
-# 设置 SQLAlchemy 相关的所有日志为 CRITICAL
-logging.getLogger("sqlalchemy").setLevel(logging.CRITICAL)
-logging.getLogger("sqlalchemy.engine").setLevel(logging.CRITICAL)
-logging.getLogger("sqlalchemy.orm").setLevel(logging.CRITICAL)
 
 
 class Bot:
@@ -32,26 +25,19 @@ class Bot:
         :param plugins_path: 插件文件目录的路径
         """
         Log.start_logging()
+
         # 成员变量初始化
+        self.plugins_list: list[Plugins] = []  # 插件实例列表
+        self.database: None | AsyncEngine = None  # 数据库连接对象
+        self.assistant_list: set[int] = set()  # 助教列表
         self.configs_path: str = configs_path
         self.plugins_path: str = plugins_path
 
-        # 检查配置文件
         check_config_files(self.configs_path)
-
-        # 初始化配置加载器
         with open(os.path.join(self.configs_path, "bot.toml"), encoding="utf-8") as f:
-            self.bot_config = tomlkit.load(f).unwrap()
+            self.bot_config = tomlkit.load(f).unwrap()  # bot 配置
 
-        # 初始化插件列表
-        self.plugins_list: list[Plugins] = []
-
-        # 初始化数据库连接对象
-        self.database: None | AsyncEngine = None
-
-        # 加载初始化参数
         Log.info(f"开始加载Bot配置文件，文件路径：{os.path.join(self.configs_path, 'bot.toml')}")
-
         # 需要检查的关键配置项
         required_configs = {
             "server_address": self.bot_config.get("Init", {}).get("server_address"),
@@ -105,10 +91,12 @@ class Bot:
         for item in required_configs.items():
             Log.info(str(item))
 
-        # 初始化api接口对象
-        self.api: Api = Api(self.server_address)
-
-        self.assistant_list: set[int] = set()
+        self.api: Api = Api(self.server_address)  # api接口对象
+        self.ai = AIService(
+            os.path.join(self.configs_path, "ai.toml"),
+            os.path.join(os.path.dirname(__file__), "../utils/persona.j2"),
+            self.api,
+        )  # ai 辅助工具对象
 
     def initialize(self) -> None:
         try:
@@ -119,12 +107,7 @@ class Bot:
         if self.bot_id is None:
             raise ValueError("无法获取Bot登录信息")
         Log.info(f"获取到Bot的登录信息：{self.bot_id}")
-        # 初始化 AI 服务
-        self.ai = AIService(
-            os.path.join(self.configs_path, "ai.toml"),
-            os.path.join(os.path.dirname(__file__), "../utils/persona.j2"),
-            self.api,
-        )
+
         self.init_database()
         self.init_assistant_list()
         self.init_plugins()
@@ -139,8 +122,7 @@ class Bot:
         try:
             self.database: AsyncEngine = create_async_engine(
                 f"postgresql+asyncpg://"
-                f"{self.database_username}:{self.database_passwd}@{self.database_address}/{self.database_name}",
-                poolclass=NullPool,
+                f"{self.database_username}:{self.database_passwd}@{self.database_address}/{self.database_name}"
             )
             Log.info("成功连接到bot数据库")
         except Exception as e:
