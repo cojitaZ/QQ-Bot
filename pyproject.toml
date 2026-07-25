@@ -24,9 +24,9 @@ dependencies = [
     "qrcode>=8.2",
     "psycopg2-binary>=2.9.12",
     "xlrd>=2.0.2",
-    "playwright>=1.60.0",
     "tomlkit>=0.15.1",
 ]
+optional-dependencies = { Schedule = ["playwright>=1.60.0"] }
 
 [dependency-groups]
 dev = [

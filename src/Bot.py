@@ -167,6 +167,12 @@ class Bot:
                 Log.info(
                     f"成功加载插件：{plugin_instance.name}，插件类型：{plugin_instance.type}，插件作者{plugin_instance.author}"
                 )
+            except (ModuleNotFoundError, ImportError) as e:
+                Log.warning(
+                    f"插件 {name} 已启用但缺少依赖 '{getattr(e, 'name', None) or e}'，已跳过加载。"
+                    f"请运行：uv sync --extra {name}"
+                )
+                continue
             except Exception as e:
                 Log.error(f"加载插件{name}失败：{e}")
                 raise e
