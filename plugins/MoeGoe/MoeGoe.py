@@ -12,7 +12,7 @@ class MoeGoe(Plugins):
         super().__init__(server_address, bot)
         self.name = "MoeGoe"
         self.type = "Group"
-        self.author = "just monika & Heai"
+        self.author = "just monika / Heai"
         self.introduction = """
                                 语音合成，樱羽艾玛/橘雪莉，中/日
                                 usage: moegoe ema/sheri zh/ja <文本>

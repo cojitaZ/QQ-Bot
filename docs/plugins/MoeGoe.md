@@ -6,7 +6,7 @@
 ## 基本信息
 - 插件名：`MoeGoe`
 - 类型：`Group`
-- 作者：`just monika & Heai`
+- 作者：`just monika / Heai`
 - 文档由AI生成：`是`
 
 ## 触发方式
