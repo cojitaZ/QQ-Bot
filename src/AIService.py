@@ -174,14 +174,12 @@ class AIService:
 
     def restricted_shell(self, cmd: str, caller_id: int) -> str:
         if caller_id != self.owner_id:
-            return "The caller are not authorized to execute this command."
+            return "The caller is not authorized to execute this command."
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         output = (
-            f"return code: {result.returncode}\n" + "stdout:\n{result.stdout}\n"
-            if result.stdout
-            else "(None)\n" + f"stderr:\n{result.stderr}\n"
-            if result.stderr
-            else "(None)\n"
+            f"return code: {result.returncode}\n"
+            + (f"stdout:\n{result.stdout}\n" if result.stdout else "stdout: (None)\n")
+            + (f"stderr:\n{result.stderr}\n" if result.stderr else "stderr: (None)\n")
         )
         return output
 
