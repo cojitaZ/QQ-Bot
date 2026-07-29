@@ -46,7 +46,7 @@ class AIProfile:
 class AIService:
     """Loads OpenAI-compatible AI profiles and sends chat completion requests."""
 
-    def __init__(self, config_path: str, persona_path: str, api: Api, owner_id: int):
+    def __init__(self, config_path: str, persona_path: str, api: Api):
         with open(config_path, encoding="utf-8") as f:
             self._config = tomlkit.load(f)
         with open(persona_path, encoding="utf-8") as f:
@@ -65,13 +65,15 @@ class AIService:
             "travily_search": self.travily_search,
             "travily_extract": self.travily_extract,
         }
-        self.owner_id = owner_id
+        self.api: Api = api
 
     async def generate(
         self,
         profile_name: str,
         messages: list[ChatCompletionMessageParam],
-        caller_id: int | None = None,
+        *,
+        caller_is_owner: bool = False,
+        group_id: int | None = None,
     ) -> str:
         """Generate one text completion using a configured profile."""
         profile = self._get_profile(profile_name)
@@ -100,6 +102,13 @@ class AIService:
                 if not tool_calls:
                     return response.choices[0].message.content or "[NO REPLY]"
 
+                if group_id is None:
+                    Log.warning("多轮对话调用工具时应提供 group_id")
+                elif response.choices[0].message.content:
+                    self.api.groupService.send_group_msg(
+                        group_id=group_id,
+                        message=response.choices[0].message.content,
+                    )
                 for tool_call in tool_calls:
                     if (
                         tool_call.function.name in self.funcs
@@ -108,7 +117,7 @@ class AIService:
                         Log.info(f"轮{turn + 1}调用工具：{tool_call.function.name}")
                         args = json.loads(tool_call.function.arguments)
                         if tool_call.function.name == "shell":
-                            args["caller_id"] = caller_id
+                            args["caller_is_owner"] = caller_is_owner
                         if tool_call.function.name in self.funcs:
                             result = self.funcs[tool_call.function.name](**args)
                         else:
@@ -172,8 +181,8 @@ class AIService:
             tools.append({"type": "function", "function": self._config["tool"][tool_name]})
         return tools
 
-    def restricted_shell(self, cmd: str, caller_id: int) -> str:
-        if caller_id != self.owner_id:
+    def restricted_shell(self, cmd: str, caller_is_owner: bool) -> str:
+        if not caller_is_owner:
             return "The caller is not authorized to execute this command."
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         output = (

@@ -96,7 +96,6 @@ class Bot:
             os.path.join(self.configs_path, "ai.toml"),
             os.path.join(os.path.dirname(__file__), "../utils/persona.j2"),
             self.api,
-            self.owner_id,
         )  # ai 辅助工具对象
 
     def initialize(self) -> None:

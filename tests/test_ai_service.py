@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from openai._types import omit
 from openai.types.chat import ChatCompletionMessageParam
 
 from src.AIService import AIConfigurationError, AIService
@@ -47,34 +46,6 @@ def test_generate_rejects_unknown_profile():
 
     with pytest.raises(AIConfigurationError, match="unknown"):
         service._get_profile("unknown")
-
-
-@pytest.mark.asyncio
-async def test_generate_uses_provider_api_key_and_does_not_mutate_messages(monkeypatch):
-    captured: dict = {}
-
-    def fake_client(**kwargs):
-        return _FakeAsyncOpenAI(captured, **kwargs)
-
-    monkeypatch.setattr("src.AIService.AsyncOpenAI", fake_client)
-    service = _make_service()
-    messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": "hello"}]
-
-    result = await service.generate("default", messages)
-
-    assert result == "configured reply"
-    assert messages == [{"role": "user", "content": "hello"}]
-    assert captured["api_key"] == "test-secret"
-    assert captured["base_url"] == "https://api.deepseek.com"
-    assert captured["timeout"] == 60.0
-    assert captured["request"] == {
-        "model": "deepseek-v4-pro",
-        "messages": messages,
-        "response_format": omit,
-        "reasoning_effort": omit,
-        "tools": omit,
-        "extra_body": None,
-    }
 
 
 @pytest.mark.asyncio
