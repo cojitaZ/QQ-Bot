@@ -9,8 +9,8 @@ from src.PrintLog import Log
 
 
 class ExamplePlugin(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "ExamplePlugin"  # 插件的名字
         self.type = "Group"  # 插件的类型（这个插件是在哪种消息类型中触发的）
         self.author = "somebody"  # 插件开发作者（不用留真名，但是当插件报错的时候需要根据这个名字找到对应的人来修）

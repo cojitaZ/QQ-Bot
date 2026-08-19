@@ -1,4 +1,5 @@
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
@@ -9,8 +10,8 @@ class TheresaHelp(Plugins):
     插件功能：读取当前群聊启用了的插件，并将其self.introduction输出\n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaHelp"
         self.type = "Group"
         self.author = "Heai"
@@ -56,4 +57,4 @@ class TheresaHelp(Plugins):
 
         head = "()表示可选参数，<>表示替换内容\n\n"
         # 发送消息
-        self.api.groupService.send_group_msg(group_id=group_id, message=head + response.strip())
+        api.groupService.send_group_msg(group_id=group_id, message=head + response.strip())

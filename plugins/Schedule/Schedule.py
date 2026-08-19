@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.EventController import GroupMessageEvent
 from src.Models import Courses, PersonalSchedule
 from src.PrintLog import Log
@@ -17,8 +18,8 @@ from utils.CQHelper import CQHelper
 
 
 class Schedule(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "Schedule"
         self.type = "Group"
         self.author = "Heai"
@@ -52,7 +53,7 @@ class Schedule(Plugins):
 
         if event.message.startswith("[CQ:file,file=textbook"):
             cq = CQHelper.load_cq(event.message)
-            file_data = self.api.messageService.get_group_file_url(
+            file_data = api.messageService.get_group_file_url(
                 group_id=event.group_id, file_id=cq.file_id
             )
             url = file_data.get("data").get("url")
@@ -83,13 +84,13 @@ class Schedule(Plugins):
                     )
                     await session.merge(new_schedule)
                     await session.commit()
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=event.group_id,
                     message=f"已导入{event.user_id}课表文件",
                 )
             except Exception as e:
                 Log.error(f"解析课表文件失败，错误信息: {e}")
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=event.group_id, message=f"解析{event.user_id}课表文件失败"
                 )
             return
@@ -149,7 +150,7 @@ class Schedule(Plugins):
                 schedule_blocks.sort(key=lambda x: x["start_dt"])
                 # 3. 构造默认数据模型（默认状态为今天没课）
                 person_data = {
-                    "name": self.api.groupService.get_group_member_info(
+                    "name": api.groupService.get_group_member_info(
                         group_id=person.group_id, user_id=person.user_id
                     )["data"]["card_or_nickname"],
                     "id": person.user_id,
@@ -228,5 +229,5 @@ class Schedule(Plugins):
             await element.screenshot(path=output_image_path)
             await browser.close()
 
-        self.api.groupService.send_group_img(group_id=event.group_id, image_path=output_image_path)
+        api.groupService.send_group_img(group_id=event.group_id, image_path=output_image_path)
         return

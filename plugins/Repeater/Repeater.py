@@ -1,6 +1,7 @@
 import random
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 
@@ -12,8 +13,8 @@ class Repeater(Plugins):
     插件功能：当群聊有一定数量条复读消息时，bot会撤回最后一个复读消息并禁言该用户十分钟 \n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "Repeater"
         self.type = "Group"
         self.author = "kiriko"
@@ -69,7 +70,7 @@ class Repeater(Plugins):
             if event.user_id in ignored_ids:
                 return
             if event.role in ["admin", "owner"]:
-                self.api.groupService.send_group_msg(group_id=group_id, message=reply_message)
+                api.groupService.send_group_msg(group_id=group_id, message=reply_message)
                 return
 
             Log.debug(
@@ -78,12 +79,12 @@ class Repeater(Plugins):
             )
 
             if recall:
-                self.api.groupService.delete_msg(message_id=event.message_id)
+                api.groupService.delete_msg(message_id=event.message_id)
 
             if ban:
-                self.api.groupService.set_group_ban(
+                api.groupService.set_group_ban(
                     group_id=group_id, user_id=event.user_id, duration=duration
                 )
 
-            self.api.groupService.send_group_msg(group_id=group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=group_id, message=reply_message)
         return

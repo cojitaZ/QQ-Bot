@@ -4,12 +4,13 @@ import time
 import requests
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
 class MoeGoe(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "MoeGoe"
         self.type = "Group"
         self.author = "just monika / Heai"
@@ -23,7 +24,7 @@ class MoeGoe(Plugins):
     async def main(self, event: GroupMessageEvent, debug: bool):
         msg_parts = event.message.split(" ", maxsplit=3)
         if len(msg_parts) < 4:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id, message="usage: moegoe ema/sheri zh/ja <文本>"
             )
             return
@@ -32,19 +33,19 @@ class MoeGoe(Plugins):
         lang = msg_parts[2].upper()
         prompt = msg_parts[3]
         if (lang not in ["ZH", "JA"]) or (chara not in ["EMA", "SHERI"]):
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id, message="usage: moegoe ema/sheri zh/ja <文本>"
             )
             return
         if len(prompt) > 200:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id, message="文本过长，请限制在200字以内"
             )
             return
 
         filename = f"{os.path.dirname(os.path.abspath(__file__))}/temp/{int(time.time())}{event.user_id}.wav"
         self.get_api_response(prompt, filename, lang, chara)
-        self.api.groupService.send_group_record_msg(group_id=event.group_id, file_path=filename)
+        api.groupService.send_group_record_msg(group_id=event.group_id, file_path=filename)
 
         return
 

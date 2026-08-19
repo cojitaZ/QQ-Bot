@@ -9,7 +9,6 @@ from plugins.DataImport.DataImport import DataImport
 from src.Models import LineCounts, Scores, StuList
 
 if TYPE_CHECKING:
-    from src.Api import Api
     from src.Bot import Bot
 
 
@@ -46,7 +45,6 @@ def make_plugin():
     plugin = object.__new__(DataImport)
     # 测试替身只提供被测代码访问的属性；经 object 中转以通过 basedpyright 的重叠性检查
     plugin.bot = cast("Bot", cast(object, SimpleNamespace(owner_id=10001)))
-    plugin.api = cast("Api", cast(object, SimpleNamespace(groupService=group_service)))
     plugin.session_factory = cast(Any, session_factory)
     return plugin, group_service, session_factory
 
@@ -96,14 +94,17 @@ def make_plugin():
 async def test_data_import_parses_and_replaces_semester_rows(
     table_name, file_content, expected_model, expected_rows
 ):
-    plugin, _, session_factory = make_plugin()
+    plugin, group_service, session_factory = make_plugin()
     event = SimpleNamespace(
         message=f"DataImport {table_name} 252620",
         user_id=10001,
         group_id=20001,
     )
 
-    with patch("builtins.open", mock_open(read_data=file_content)):
+    with (
+        patch("builtins.open", mock_open(read_data=file_content)),
+        patch("src.Api.api.groupService", group_service),
+    ):
         await cast(Any, DataImport.main).__wrapped__(plugin, event, debug=False)
 
     assert len(session_factory.sessions) == 1
@@ -126,7 +127,8 @@ async def test_data_import_rejects_unknown_table_without_database_access():
         group_id=20001,
     )
 
-    await cast(Any, DataImport.main).__wrapped__(plugin, event, debug=False)
+    with patch("src.Api.api.groupService", group_service):
+        await cast(Any, DataImport.main).__wrapped__(plugin, event, debug=False)
 
     assert session_factory.sessions == []
     group_service.send_group_msg.assert_called_once()

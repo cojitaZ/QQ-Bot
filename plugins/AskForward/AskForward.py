@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import AskMessage, Message
 from utils.CQHelper import CQHelper
@@ -12,8 +13,8 @@ from utils.CQType import CQMessage, Forward, Reply
 
 
 class AskForward(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "AskForward"
         self.type = "Group"
         self.author = "Heai"
@@ -64,7 +65,7 @@ class AskForward(Plugins):
                     session.add(ask_message)
                 await session.commit()
 
-            self.api.groupService.send_group_forward_msg(
+            api.groupService.send_group_forward_msg(
                 group_id=answer_group, forward_message=forward_msg.message
             )
             await self.forward_message(
@@ -166,7 +167,7 @@ class AskForward(Plugins):
                         sender_name=row[2],
                         uid=row[1],
                     )
-            self.api.groupService.send_group_forward_msg(
+            api.groupService.send_group_forward_msg(
                 group_id=broadcast_target_group, forward_message=broadcast_msg.message
             )
         return
@@ -200,7 +201,7 @@ class AskForward(Plugins):
         reply_id: int | None = None,
         discussion_id: int | None = None,
     ) -> None:
-        self.api.groupService.send_group_msg(
+        api.groupService.send_group_msg(
             group_id=target_group_id,
             message=f"{Reply(id=reply_id) if reply_id is not None else ''}#{discussion_id if discussion_id is not None else 'None'} {event.sql_id} from {event.group_name if keep_group_name else '答疑'}\n{(event.card + '\n') if keep_card else ''}{remove_reply(clean_at(event.message, True))}",
         )

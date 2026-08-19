@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from httpx import AsyncClient, Timeout
 
-from src.Api import Api
+from src.Api import api
 from src.gitea.GiteaEventFormatter import (
     ContentNode,
     FileSegment,
@@ -27,14 +27,12 @@ from utils.TextUtils import format_size, sanitize_filename
 
 
 class NotificationService:
-    api: Api
     response_group: int
     gitea_api_url: str
     gitea_api_token: str
     formatter: GiteaEventFormatter
 
-    def __init__(self, api: Api, response_group: int, gitea_api_url: str, gitea_api_token: str):
-        self.api = api
+    def __init__(self, response_group: int, gitea_api_url: str, gitea_api_token: str):
         self.response_group = response_group
         self.gitea_api_url = gitea_api_url.strip().rstrip("/")
         if not self.gitea_api_url:
@@ -197,7 +195,7 @@ class NotificationService:
                 self._node_segments(ContentNode(sender_name="", segments=segments), path_map)
             )
             msg.append({"type": "text", "data": {"text": f"\nurl: {data.comment.html_url}"}})
-            await self.api.asyncService.send_group_msg(group_id=self.response_group, message=msg)
+            await api.asyncService.send_group_msg(group_id=self.response_group, message=msg)
 
             # 2. 拉取历史评论并发送合并转发
             comments = await self._fetch_issue_comments(
@@ -217,7 +215,7 @@ class NotificationService:
                 plan_path_map = {}
 
             forward: Forward = self._build_forward_from_plan(plan, plan_path_map)
-            await self.api.asyncService.send_group_forward_msg(
+            await api.asyncService.send_group_forward_msg(
                 group_id=self.response_group, forward_message=forward.message
             )
         finally:
@@ -251,14 +249,14 @@ class NotificationService:
                 self._node_segments(ContentNode(sender_name="", segments=segments), path_map)
             )
             message.append({"type": "text", "data": {"text": f"\nurl: {data.issue.html_url}"}})
-            await self.api.asyncService.send_group_msg(
+            await api.asyncService.send_group_msg(
                 group_id=self.response_group,
                 message=message,
             )
 
             plan = self.formatter.issues_forward_plan(data, event_type)
             forward: Forward = self._build_forward_from_plan(plan, path_map)
-            await self.api.asyncService.send_group_forward_msg(
+            await api.asyncService.send_group_forward_msg(
                 group_id=self.response_group,
                 forward_message=forward.message,
             )
@@ -271,7 +269,7 @@ class NotificationService:
             Log.warning(f"Empty Gitea webhook message for {event_type}")
             return
 
-        await self.api.asyncService.send_group_msg(
+        await api.asyncService.send_group_msg(
             group_id=self.response_group,
             message=message,
         )

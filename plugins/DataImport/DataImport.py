@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import LineCounts, Scores, StuList
 
@@ -17,8 +18,8 @@ class DataImport(Plugins):
         "stulists_detail": StuList,
     }
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "DataImport"
         self.type = "Group"
         self.author = "Heai"
@@ -40,7 +41,7 @@ class DataImport(Plugins):
 
         table_name = message.split()[1]
         if table_name not in ["scores", "linecounts", "stulists", "stulists_detail"]:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message="表名错误，请使用 scores、linecounts、stulists 或 stulists_detail",
             )
@@ -56,7 +57,7 @@ class DataImport(Plugins):
         with open(filename, encoding="utf-8") as f:
             lines = f.readlines()
 
-        self.api.groupService.send_group_msg(
+        api.groupService.send_group_msg(
             group_id=event.group_id,
             message=f"正在向表 {table_name} 导入学期 {semester} 的 {len(lines)} 条数据",
         )

@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 
 import tomlkit
 
-from src.Api import Api
-
 if TYPE_CHECKING:
     from src.Bot import Bot
 
@@ -57,9 +55,7 @@ class Plugins:
     插件的父类，所有编写的插件都继承这个类
     """
 
-    def __init__(self, server_address: str, bot):
-        self.server_address = server_address
-        self.api: Api = Api(server_address)
+    def __init__(self, bot):
         self.bot: Bot = bot
         self.name = "name"
         self.type = "type"

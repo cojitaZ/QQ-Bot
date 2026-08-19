@@ -4,6 +4,7 @@ import random
 import redis
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.event_handler.NoticeEventHandler import GroupRecallEvent
 from src.PrintLog import Log
@@ -17,8 +18,8 @@ class RecallPrevent(Plugins):
     插件功能：当有人通过私在群聊撤回消息时，bot会自动发送撤回消息内容的消息 \n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "RecallPrevent"
         self.type = "GroupRecall"
         self.author = "kiriko"
@@ -89,10 +90,10 @@ class RecallPrevent(Plugins):
 
         if user_id == operator_id:  # 正式进入插件运行部分
             reply_message = f"{At(qq=user_id)} 撤回的消息是：{recalled_message}"
-            self.api.groupService.send_group_msg(group_id=group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=group_id, message=reply_message)
 
             if ban:
-                self.api.groupService.set_group_ban(
+                api.groupService.set_group_ban(
                     group_id=group_id, user_id=event.user_id, duration=duration
                 )
         return

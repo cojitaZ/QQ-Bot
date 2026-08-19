@@ -2,6 +2,7 @@ import time
 from random import randint
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.NoticeEventHandler import GroupPokeEvent
 from utils.CQType import At, Face
 
@@ -13,8 +14,8 @@ class DontPoke(Plugins):
     插件功能：当有人戳一戳时，bot作出回复\n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "DontPoke"
         self.type = "Poke"
         self.author = "Heai"
@@ -38,7 +39,7 @@ class DontPoke(Plugins):
         if current_time - last_ask_time < self.config.get("cooldown_time", 0):
             # if event.role in ["admin", "owner"]:
             #     return
-            # self.api.groupService.send_group_msg(group_id=group_id, message=f"{At(qq=event.user_id)} 还戳，挨ban了吧")
+            # api.groupService.send_group_msg(group_id=group_id, message=f"{At(qq=event.user_id)} 还戳，挨ban了吧")
             # ban_time = self.config.get("ban_time")
             # ban_time_cuts = ban_time.split("-")
             # min_ban_time = ban_time_cuts[0].split(":")
@@ -46,7 +47,7 @@ class DontPoke(Plugins):
             # duration = randint(int(min_ban_time[0]) * 3600 + int(min_ban_time[1]) * 60 +
             #                 int(min_ban_time[2]), int(max_ban_time[0]) * 3600 + int(max_ban_time[1]) * 60 +
             #                 int(max_ban_time[2]))
-            # self.api.groupService.set_group_ban(group_id=group_id, user_id=event.user_id, duration=duration)
+            # api.groupService.set_group_ban(group_id=group_id, user_id=event.user_id, duration=duration)
             return
 
         user_id = event.user_id
@@ -71,9 +72,9 @@ class DontPoke(Plugins):
                 "哎呦疼——",
             ]
             message = f"{At(qq=user_id)} " + message_list[randint(0, len(message_list) - 1)]
-        self.api.groupService.send_group_msg(group_id=group_id, message=message)
+        api.groupService.send_group_msg(group_id=group_id, message=message)
 
         repoke_frequency = self.config.get("repoke_frequency", 0)
         if randint(0, 99) < repoke_frequency:
-            self.api.groupService.send_group_poke(group_id=group_id, user_id=user_id)
+            api.groupService.send_group_poke(group_id=group_id, user_id=user_id)
         return

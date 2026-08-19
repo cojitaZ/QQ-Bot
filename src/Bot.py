@@ -12,7 +12,7 @@ from plugins import Plugins
 from utils.Database import build_database_url
 
 from .AIService import AIService
-from .Api import Api
+from .Api import api
 from .EventController import Event
 from .PrintLog import Log
 from .webhook_handler.WebhookHandler import WebhookHandler
@@ -92,19 +92,18 @@ class Bot:
         for item in required_configs.items():
             Log.info(str(item))
 
-        self.api: Api = Api(self.server_address)  # api接口对象
+        api.set_server_address(self.server_address)
         self.ai = AIService(
             os.path.join(self.configs_path, "ai.toml"),
             os.path.join(os.path.dirname(__file__), "../utils/persona.j2"),
-            self.api,
         )  # ai 辅助工具对象
 
     def initialize(self) -> None:
         try:
-            self.api.botSelfInfo.get_login()
+            api.botSelfInfo.get_login()
         except Exception as e:
             raise ConnectionError(f"无法连接到Bot服务端，请确认监听端配置：{e}") from None
-        self.bot_id: int = self.api.botSelfInfo.get_login_info().get("data", {}).get("user_id")
+        self.bot_id: int = api.botSelfInfo.get_login_info().get("data", {}).get("user_id")
         if self.bot_id is None:
             raise ValueError("无法获取Bot登录信息")
         Log.info(f"获取到Bot的登录信息：{self.bot_id}")
@@ -139,7 +138,7 @@ class Bot:
             Log.warning("未设置助教群ID，跳过加载助教列表")
             return
 
-        assistants: list = self.api.groupService.get_group_member_list(
+        assistants: list = api.groupService.get_group_member_list(
             group_id=self.assistant_group
         ).get("data")
         for member in assistants:
@@ -261,7 +260,7 @@ class Bot:
         # 获取子包中的插件类，假设类名与模块名相同
         PluginClass = getattr(plugin_module, name)
         # 实例化插件
-        plugin_instance: Plugins = PluginClass(self.server_address, self)
+        plugin_instance: Plugins = PluginClass(self)
         # 传递插件配置
         plugin_instance.config = plugin_config
         return plugin_instance
@@ -281,7 +280,6 @@ class Bot:
         webhook_handler = None
         if self.enable_webhook_handler:
             webhook_handler = WebhookHandler(
-                self.api,
                 self.webhook_response_group,
                 self.gitea_api_url,
                 self.gitea_api_token,

@@ -5,7 +5,6 @@ import pytest
 from openai.types.chat import ChatCompletionMessageParam
 
 from src.AIService import AIConfigurationError, AIService
-from src.Api import Api
 from src.Bot import check_config_files
 
 
@@ -13,7 +12,6 @@ def _make_service(api_key: str = "test-secret") -> AIService:
     service = AIService(
         "configs/ai.toml.template",
         "utils/persona.j2",
-        Api("localhost"),
     )
     provider_name = service._config["profile"]["default"]["provider"]
     service._config["provider"][provider_name]["api_key"] = api_key

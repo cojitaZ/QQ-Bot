@@ -1,7 +1,7 @@
 """NotificationService 图片下载与发送编排的单元测试。"""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,13 +16,12 @@ from src.webhook_handler.NotificationService import NotificationService
 
 @pytest.fixture
 def service():
-    api = MagicMock()
-    return NotificationService(api, 123, "https://gitea.example.com", "token")
+    return NotificationService(123, "https://gitea.example.com", "token")
 
 
 def test_notification_service_requires_non_empty_api_url():
     with pytest.raises(ValueError, match=r"\[Gitea\] api_url 不能为空"):
-        NotificationService(MagicMock(), 123, "   ", "token")
+        NotificationService(123, "   ", "token")
 
 
 def _make_response(content: bytes = b"data", status: int = 200):
@@ -184,9 +183,7 @@ def _issues_event_with_inline_image():
 @pytest.mark.asyncio
 async def test_issues_notification_sends_markdown_images_and_attachments(monkeypatch):
     """issues 事件应与 issue_comment 一样将正文 Markdown 图片下载后混合发送。"""
-    api = MagicMock()
-    api.asyncService = AsyncMock()
-    service = NotificationService(api, 123, "https://gitea.example.com", "token")
+    service = NotificationService(123, "https://gitea.example.com", "token")
     event = _issues_event_with_inline_image()
     downloaded_images: list[ImageSegment] = []
 
@@ -196,38 +193,39 @@ async def test_issues_notification_sends_markdown_images_and_attachments(monkeyp
 
     monkeypatch.setattr(service, "_download_images", fake_download)
 
-    await service._send_issues_notification(event, "issues")
+    with patch("src.Api.api.asyncService", new=AsyncMock()) as async_service:
+        await service._send_issues_notification(event, "issues")
 
-    assert downloaded_images == [
-        ImageSegment(url="https://gitea.example.com/attachments/inline.png", alt="screen")
-    ]
+        assert downloaded_images == [
+            ImageSegment(url="https://gitea.example.com/attachments/inline.png", alt="screen")
+        ]
 
-    api.asyncService.send_group_msg.assert_awaited_once()
-    plain_message = api.asyncService.send_group_msg.await_args.kwargs["message"]
-    assert plain_message[0] == {
-        "type": "text",
-        "data": {
-            "text": "[Gitea] issues #1 opened in org/repo\nIssue with image",
-        },
-    }
-    assert plain_message[1:4] == [
-        {"type": "text", "data": {"text": "before "}},
-        {"type": "image", "data": {"file": "file://C:/tmp/inline.png"}},
-        {"type": "text", "data": {"text": " after\n\n"}},
-    ]
-    assert "report.txt" in plain_message[4]["data"]["text"]
-    assert plain_message[5] == {
-        "type": "text",
-        "data": {"text": "\nurl: https://gitea.example.com/org/repo/issues/1"},
-    }
+        async_service.send_group_msg.assert_awaited_once()
+        plain_message = async_service.send_group_msg.await_args.kwargs["message"]
+        assert plain_message[0] == {
+            "type": "text",
+            "data": {
+                "text": "[Gitea] issues #1 opened in org/repo\nIssue with image",
+            },
+        }
+        assert plain_message[1:4] == [
+            {"type": "text", "data": {"text": "before "}},
+            {"type": "image", "data": {"file": "file://C:/tmp/inline.png"}},
+            {"type": "text", "data": {"text": " after\n\n"}},
+        ]
+        assert "report.txt" in plain_message[4]["data"]["text"]
+        assert plain_message[5] == {
+            "type": "text",
+            "data": {"text": "\nurl: https://gitea.example.com/org/repo/issues/1"},
+        }
 
-    api.asyncService.send_group_forward_msg.assert_awaited_once()
-    forward_message = api.asyncService.send_group_forward_msg.await_args.kwargs["forward_message"]
-    assert forward_message[0]["data"]["content"][0]["data"]["text"] == (
-        "[Gitea] issues #1 opened in org/repo\nTitle: Issue with image\nLabels: bug\nAuthor: alice"
-    )
-    assert forward_message[1]["data"]["content"][0:3] == plain_message[1:4]
-    assert "report.txt" in forward_message[1]["data"]["content"][3]["data"]["text"]
+        async_service.send_group_forward_msg.assert_awaited_once()
+        forward_message = async_service.send_group_forward_msg.await_args.kwargs["forward_message"]
+        assert forward_message[0]["data"]["content"][0]["data"]["text"] == (
+            "[Gitea] issues #1 opened in org/repo\nTitle: Issue with image\nLabels: bug\nAuthor: alice"
+        )
+        assert forward_message[1]["data"]["content"][0:3] == plain_message[1:4]
+        assert "report.txt" in forward_message[1]["data"]["content"][3]["data"]["text"]
 
 
 @pytest.mark.asyncio

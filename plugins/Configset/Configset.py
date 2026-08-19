@@ -1,10 +1,11 @@
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
 class Configset(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "Configset"
         self.type = "Group"
         self.author = "cojitaZ"
@@ -46,5 +47,5 @@ class Configset(Plugins):
                     )
                     reply_msg += "成功" if status else "失败"
 
-        self.api.groupService.send_group_msg(group_id=event.group_id, message=reply_msg)
+        api.groupService.send_group_msg(group_id=event.group_id, message=reply_msg)
         return

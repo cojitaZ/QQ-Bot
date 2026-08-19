@@ -1,10 +1,11 @@
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
 class TheresaWithdraw(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaWithdraw"
         self.type = "Group"
         self.author = "Heai"
@@ -31,7 +32,7 @@ class TheresaWithdraw(Plugins):
         else:
             target_message_id = message[13 : message.find("]")]
             reply_message = ""
-            self.api.groupService.delete_msg(message_id=target_message_id)
-            self.api.groupService.delete_msg(message_id=event.message_id)
+            api.groupService.delete_msg(message_id=target_message_id)
+            api.groupService.delete_msg(message_id=event.message_id)
 
-        self.api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
+        api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)

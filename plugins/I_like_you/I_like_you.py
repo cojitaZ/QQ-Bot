@@ -1,13 +1,14 @@
 from pathlib import Path
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 
 
 class I_like_you(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "I_like_you"
         self.type = "Group"
         self.author = "cojitaZ"
@@ -22,7 +23,7 @@ class I_like_you(Plugins):
         message = event.message
         if "我喜欢你" in message:
             try:
-                self.api.groupService.send_group_record_msg(
+                api.groupService.send_group_record_msg(
                     group_id=event.group_id,
                     file_path=Path(__file__).resolve().parent / "我喜欢你_你喜欢我.wav",
                 )
@@ -35,7 +36,7 @@ class I_like_you(Plugins):
             return
         elif "我不喜欢你" in message:
             try:
-                self.api.groupService.send_group_record_msg(
+                api.groupService.send_group_record_msg(
                     group_id=event.group_id,
                     file_path=Path(__file__).resolve().parent / "我不喜欢你.wav",
                 )

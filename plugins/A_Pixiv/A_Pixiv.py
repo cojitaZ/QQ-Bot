@@ -11,6 +11,7 @@ from aiohttp import ClientTimeout
 from PIL import Image
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 from utils.CQType import Forward
@@ -264,8 +265,8 @@ class pixiv_img_get:
 
 
 class A_Pixiv(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "A_Pixiv"
         self.type = "Group"
         self.author = "cojitaZ"
@@ -296,7 +297,7 @@ class A_Pixiv(Plugins):
                         forward_message = pixic.get_forward()
                     else:
                         Log.error("下载失败")
-                        self.api.groupService.send_group_msg(
+                        api.groupService.send_group_msg(
                             group_id=event.group_id, message="下载失败了!请检查日志"
                         )
                         return
@@ -304,60 +305,56 @@ class A_Pixiv(Plugins):
                     reply_message = f"标题:{pixic.title}\ntags:{pixic.tags}"
 
                     if pixic.R_18:
-                        self.api.groupService.send_group_msg(
+                        api.groupService.send_group_msg(
                             group_id=event.group_id,
                             message=reply_message + "\n由于请求为R-18作品，小孩子还是不要看啦...",
                         )
                         if self.send_R_18:
-                            await self.api.asyncService.send_group_forward_msg(
+                            await api.asyncService.send_group_forward_msg(
                                 group_id=event.group_id, forward_message=forward_message
                             )
                             if self.send_R_18_img_private:
                                 Log.debug("将发送给个人", debug)
-                                self.api.privateService.send_private_msg(
+                                api.privateService.send_private_msg(
                                     user_id=event.user_id, message=reply_message
                                 )
-                                await self.api.asyncService.send_private_forward_msg(
+                                await api.asyncService.send_private_forward_msg(
                                     user_id=event.user_id, forward_message=forward_message
                                 )
                         else:
-                            self.api.groupService.send_group_msg(
+                            api.groupService.send_group_msg(
                                 group_id=event.group_id,
                                 message="基于本群的bot设置,R-18图像的倒转将不会被发出",
                             )
                     else:
-                        self.api.groupService.send_group_msg_with_img(
+                        api.groupService.send_group_msg_with_img(
                             group_id=event.group_id,
                             message=reply_message,
                             image_path=pixic.preview_path,
                         )
-                        await self.api.asyncService.send_group_forward_msg(
+                        await api.asyncService.send_group_forward_msg(
                             group_id=event.group_id, forward_message=forward_message
                         )
                 else:
                     "某种失败"
-                    self.api.groupService.send_group_msg(
-                        group_id=event.group_id, message=pixic.error
-                    )
+                    api.groupService.send_group_msg(group_id=event.group_id, message=pixic.error)
                     if pixic.error[0:4] == "网络请求":
-                        self.api.groupService.send_group_msg(
+                        api.groupService.send_group_msg(
                             group_id=event.group_id, message="看来网络不是很稳定呢..."
                         )
                     elif pixic.error[0:4] == "JSON":
-                        self.api.groupService.send_group_msg(
+                        api.groupService.send_group_msg(
                             group_id=event.group_id,
                             message="JSON解析失败了....是获取到的数据有问题吗？",
                         )
                     else:
-                        self.api.groupService.send_group_msg(
+                        api.groupService.send_group_msg(
                             group_id=event.group_id,
                             message="某种未知的错误，看看是不是插件写错啦？",
                         )
             else:
                 "输入并非纯数字"
-                self.api.groupService.send_group_msg(
-                    group_id=event.group_id, message="输入并非纯数字"
-                )
+                api.groupService.send_group_msg(group_id=event.group_id, message="输入并非纯数字")
             Log.debug(f"成功处理{event.group_id}的pid请求", debug)
             return
         elif message == "p_clean":
@@ -365,5 +362,5 @@ class A_Pixiv(Plugins):
             直接删除整个文件夹，然后重新创建空文件夹
             """
             pixiv_img_get()
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="已全部删除")
+            api.groupService.send_group_msg(group_id=event.group_id, message="已全部删除")
             Log.debug(f"成功处理{event.group_id}的删除请求", debug)

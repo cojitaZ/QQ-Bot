@@ -8,8 +8,8 @@ from utils.CQType import Forward
 
 
 class Api:
-    def __init__(self, server_address):
-        self.bot_api_address = f"http://{server_address}/"
+    def __init__(self):
+        self.bot_api_address: str = ""
 
         # 传递Api类的实例引用
         self.botSelfInfo: Api.BotSelfInfo = self.BotSelfInfo(self)
@@ -17,6 +17,9 @@ class Api:
         self.groupService: Api.GroupService = self.GroupService(self)
         self.messageService: Api.MessageService = self.MessageService(self)
         self.asyncService: Api.AsyncService = self.AsyncService(self)
+
+    def set_server_address(self, server_address: str):
+        self.bot_api_address = f"http://{server_address}/"
 
     class BotSelfInfo:
         def __init__(self, api_instance):
@@ -303,3 +306,6 @@ class Api:
                     msg=msg,
                 )
             return return_dict.message
+
+
+api: Api = Api()

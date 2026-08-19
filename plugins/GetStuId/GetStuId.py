@@ -2,13 +2,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import StuId
 
 
 class GetStuId(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "GetStuId"
         self.type = "Group"
         self.author = "Heai"
@@ -29,9 +30,7 @@ class GetStuId(Plugins):
             return
 
         group_id = int(message.split()[1])
-        group_member_list = self.api.groupService.get_group_member_list(group_id=group_id).get(
-            "data"
-        )
+        group_member_list = api.groupService.get_group_member_list(group_id=group_id).get("data")
 
         info_list = []
         for member in group_member_list:
@@ -40,7 +39,7 @@ class GetStuId(Plugins):
             if ("-" in card) and (card.split("-")[0].isdigit()):
                 stu_id = card.split("-")[0]
                 info_list.append((user_id, stu_id))
-        self.api.groupService.send_group_msg(
+        api.groupService.send_group_msg(
             group_id=event.group_id, message=f"共获取到{len(info_list)}条数据"
         )
 

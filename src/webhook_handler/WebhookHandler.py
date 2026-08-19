@@ -2,7 +2,6 @@ import uvicorn
 from fastapi import FastAPI, Request
 from pydantic import ValidationError
 
-from src.Api import Api
 from src.gitea.Models import GiteaPushEvent, GiteaWebhookEvent
 from src.PrintLog import Log
 from src.webhook_handler.EventConfig import EVENT_CONFIG, EventConfig
@@ -53,11 +52,10 @@ def parse_gitea_event(event_type: str, payload: dict) -> GiteaWebhookEvent:
 
 
 class WebhookHandler:
-    def __init__(self, api: Api, response_group: int, gitea_api_url: str, gitea_api_token: str):
-        self.api: Api = api
+    def __init__(self, response_group: int, gitea_api_url: str, gitea_api_token: str):
         self.response_group: int = response_group
         self.notification_service = NotificationService(
-            api, response_group, gitea_api_url, gitea_api_token
+            response_group, gitea_api_url, gitea_api_token
         )
         self.server = None
         app.state.handler = self

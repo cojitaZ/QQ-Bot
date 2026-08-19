@@ -3,14 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.RequestEventHandler import GroupRequestEvent
 from src.Models import StuList
 from src.PrintLog import Log
 
 
 class GroupApprove(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "GroupApprove"
         self.type = "GroupRequest"
         self.author = "kiriko / Heai"
@@ -40,7 +41,7 @@ class GroupApprove(Plugins):
 
         # 允许助教
         if event.user_id in self.bot.assistant_list:
-            self.api.groupService.set_group_add_request(flag=flag)
+            api.groupService.set_group_add_request(flag=flag)
             Log.debug(f"{self.name}:{group_id}助教入群申请{flag}批准", debug)
             return
 
@@ -49,7 +50,7 @@ class GroupApprove(Plugins):
         if not self.format_check(real_answer):
             if reject_flag:
                 reject_reason = "请以正确格式申请入群"
-                self.api.groupService.set_group_add_request(
+                api.groupService.set_group_add_request(
                     flag=flag, approve=False, reason=reject_reason
                 )
                 Log.debug(
@@ -66,7 +67,7 @@ class GroupApprove(Plugins):
         ):
             if reject_flag:
                 reject_reason = "学号错误"
-                self.api.groupService.set_group_add_request(
+                api.groupService.set_group_add_request(
                     flag=flag, approve=False, reason=reject_reason
                 )
                 Log.debug(
@@ -76,7 +77,7 @@ class GroupApprove(Plugins):
             else:
                 Log.debug(f"{self.name}:{group_id}无信息入群申请{flag}挂起", debug)
         else:
-            self.api.groupService.set_group_add_request(flag=flag)
+            api.groupService.set_group_add_request(flag=flag)
             Log.debug(f"{self.name}:{group_id}正确入群申请{flag}批准", debug)
 
     def format_check(self, real_answer: str) -> bool:

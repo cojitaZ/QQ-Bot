@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.event_handler.SendEventHandler import SendEvent
 from src.Models import Message
@@ -13,8 +14,8 @@ PATTERN = re.compile(r"\[CQ:reply,id=(-?\d+)\]")
 
 
 class MessageRecorder(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "MessageRecorder"
         self.type = "Record"
         self.author = "Heai"
@@ -32,9 +33,7 @@ class MessageRecorder(Plugins):
         for cq in cqs:
             if cq.cq_type == "image":
                 msg = str(cq)
-                cq.path = (
-                    self.api.messageService.get_image(cq.file).get("data", {}).get("file", None)
-                )
+                cq.path = api.messageService.get_image(cq.file).get("data", {}).get("file", None)
                 del cq.url
                 if cq.path is not None:
                     message = message.replace(msg, str(cq))

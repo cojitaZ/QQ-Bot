@@ -1,7 +1,7 @@
 import os
+import subprocess
 from importlib import import_module
 from pkgutil import iter_modules
-from unittest.mock import patch
 
 import pytest
 import tomlkit
@@ -25,10 +25,20 @@ def get_plugin_names():
     return [name for _, name, ispkg in iter_modules([plugins_path]) if ispkg]
 
 
+def get_tracked_plugin_names():
+    """返回被 git 跟踪的插件包名，跳过本地未跟踪/被忽略的目录。"""
+    output = subprocess.run(
+        ["git", "-C", base_path, "ls-files", plugins_path],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return sorted({line.split("/")[1] for line in output.splitlines() if line.count("/") >= 2})
+
+
 @pytest.fixture
 def bot():
-    with patch("src.Bot.Api"):
-        bot = Bot(configs_path=configs_path, plugins_path=plugins_path)
+    bot = Bot(configs_path=configs_path, plugins_path=plugins_path)
     bot.database_enable = False
     return bot
 
@@ -47,10 +57,10 @@ class Test:
         assert os.path.exists(groups_config_path), f"群聊配置文件不存在: {groups_config_path}"
 
     def test_all_plugins_have_template_section(self):
-        """所有插件包都应在 plugins.toml.template 中声明 section"""
+        """所有被 git 跟踪的插件包都应在 plugins.toml.template 中声明 section"""
         template_config = load_config(plugins_template_config_path)
 
-        plugin_packages = [name for _, name, ispkg in iter_modules([plugins_path]) if ispkg]
+        plugin_packages = get_tracked_plugin_names()
         missing_sections = [name for name in plugin_packages if name not in template_config]
 
         assert plugin_packages, "未找到任何插件包"
@@ -66,7 +76,7 @@ class Test:
 
         plugin_module = import_module(f".{plugin_name}", "plugins")
         PluginClass = getattr(plugin_module, plugin_name)
-        plugin_instance = PluginClass(bot.server_address, bot)
+        plugin_instance = PluginClass(bot)
         if plugin_name in plugins_config:
             plugin_instance.config = plugins_config[plugin_name]
 

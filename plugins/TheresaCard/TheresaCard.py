@@ -6,14 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import StuList
 from utils.CQType import At, Forward
 
 
 class TheresaCard(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaCard"
         self.type = "Group"
         self.author = "Heai"
@@ -38,7 +39,7 @@ class TheresaCard(Plugins):
             and (event.role not in ["admin", "owner"])
             and (event.user_id not in self.bot.assistant_list)
         ):
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
+            api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
             return
 
         # 解析参数
@@ -53,21 +54,21 @@ class TheresaCard(Plugins):
             time_limit_seconds = time_limit_hours * 3600
             check_time_flag = True
         if kick_flag and (event.user_id not in permission_ids):
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
+            api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
             return
         if strict_flag or unenter_flag:
             semester = self.config.get("semesters", {}).get(str(event.group_id))
             if semester is None:
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=event.group_id,
                     message=f"未设定群 {event.group_id} 学期信息，请联系 bot 管理员",
                 )
                 return
 
         # 获取群成员列表，初始化变量
-        group_member_list = self.api.groupService.get_group_member_list(
-            group_id=event.group_id
-        ).get("data")
+        group_member_list = api.groupService.get_group_member_list(group_id=event.group_id).get(
+            "data"
+        )
         ignored_ids: list[int] = self.config.get("ignored_ids", [])
         not_allowed_ids = []
         not_allowed_cards = []
@@ -148,19 +149,17 @@ class TheresaCard(Plugins):
             if len(entry_lines) > 20:
                 for entry_chunk in chunked(entry_lines, 20):
                     message = "\n".join(entry_chunk)
-                    self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
-                self.api.groupService.send_group_msg(
-                    group_id=event.group_id, message=suffix.strip()
-                )
+                    api.groupService.send_group_msg(group_id=event.group_id, message=message)
+                api.groupService.send_group_msg(group_id=event.group_id, message=suffix.strip())
             else:
                 message = "\n".join(entry_lines) + suffix
-                self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
+                api.groupService.send_group_msg(group_id=event.group_id, message=message)
         else:
             message = "所有群成员名片格式均符合要求"
-            self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
+            api.groupService.send_group_msg(group_id=event.group_id, message=message)
 
         if repeated_stu_ids:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message="以下学号重复：\n"
                 + "\n".join(
@@ -178,21 +177,19 @@ class TheresaCard(Plugins):
                         type="text", msg=f"以下成员已选课但未入群，共{len(not_entered)}人"
                     )
                     forward.add_node(type="text", msg="\n".join(not_entered_lines))
-                    self.api.groupService.send_group_forward_msg(
+                    api.groupService.send_group_forward_msg(
                         group_id=event.group_id, forward_message=forward.message
                     )
                 else:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=event.group_id, message="所有已选课成员均已入群"
                     )
             else:
-                self.api.groupService.send_group_msg(
-                    group_id=event.group_id, message="所有成员均未入群"
-                )
+                api.groupService.send_group_msg(group_id=event.group_id, message="所有成员均未入群")
 
         if kick_flag:
             for user_id in not_allowed_ids:
-                self.api.groupService.set_group_kick(group_id=event.group_id, user_id=user_id)
+                api.groupService.set_group_kick(group_id=event.group_id, user_id=user_id)
         return
 
     def basic_card_check(self, card: str) -> tuple[bool, int | None, str | None]:

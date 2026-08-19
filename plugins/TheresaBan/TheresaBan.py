@@ -1,14 +1,15 @@
 import re
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 from utils.CQType import At
 
 
 class TheresaBan(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaBan"
         self.type = "Group"
         self.author = "Heai"
@@ -45,22 +46,22 @@ class TheresaBan(Plugins):
                     ban_seconds = int(command_list[3].split(".")[0])
                     if qq == str(self.bot.owner_id):
                         reply_message = f"{At(qq=event.user_id)} 你想干嘛"
-                        self.api.groupService.set_group_ban(
+                        api.groupService.set_group_ban(
                             group_id=event.group_id, user_id=event.user_id, duration=ban_seconds
                         )
                     else:
                         reply_message = ""
-                        self.api.groupService.set_group_ban(
+                        api.groupService.set_group_ban(
                             group_id=event.group_id, user_id=qq, duration=ban_seconds
                         )
                 else:
                     reply_message = f"{At(qq=event.user_id)} 格式错误，@不存在"
 
-            self.api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
 
         except Exception as e:
             Log.error(f"插件：{self.name}运行时出错：{e}")
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 处理请求时出错了: {str(e)}",
             )

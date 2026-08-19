@@ -1,12 +1,11 @@
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from plugins.AI.AI import AI
 from src.AIService import AIConfigurationError, AIProviderError
-from src.Api import Api
 from src.Bot import Bot
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
@@ -34,7 +33,6 @@ async def test_ai_plugin_returns_friendly_message_for_ai_service_errors(error, e
             ),
         ),
     )
-    plugin.api = cast(Api, cast(object, SimpleNamespace(groupService=group_service)))
     plugin.config = {"ai_profile": "default"}
     plugin.user_cooldown = {}
     plugin.cooldown_time = 1
@@ -52,7 +50,8 @@ async def test_ai_plugin_returns_friendly_message_for_ai_service_errors(error, e
         ),
     )
 
-    await cast(Any, AI.main).__wrapped__(plugin, event, debug=False)
+    with patch("src.Api.api.groupService", group_service):
+        await cast(Any, AI.main).__wrapped__(plugin, event, debug=False)
 
     assert group_service.send_group_msg.call_count == 2
     fallback_message = group_service.send_group_msg.call_args_list[-1].kwargs["message"]

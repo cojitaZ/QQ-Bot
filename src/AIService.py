@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 from openai._types import NotGiven, Omit, not_given, omit
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolUnionParam
 
-from src.Api import Api
+from src.Api import api
 from src.PrintLog import Log
 
 
@@ -46,7 +46,7 @@ class AIProfile:
 class AIService:
     """Loads OpenAI-compatible AI profiles and sends chat completion requests."""
 
-    def __init__(self, config_path: str, persona_path: str, api: Api):
+    def __init__(self, config_path: str, persona_path: str):
         with open(config_path, encoding="utf-8") as f:
             self._config = tomlkit.load(f)
         with open(persona_path, encoding="utf-8") as f:
@@ -65,7 +65,6 @@ class AIService:
             "travily_search": self.travily_search,
             "travily_extract": self.travily_extract,
         }
-        self.api: Api = api
 
     async def generate(
         self,
@@ -105,7 +104,7 @@ class AIService:
                 if group_id is None:
                     Log.warning("多轮对话调用工具时应提供 group_id")
                 elif response.choices[0].message.content:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=group_id,
                         message=response.choices[0].message.content,
                     )

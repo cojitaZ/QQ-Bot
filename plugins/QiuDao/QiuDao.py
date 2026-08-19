@@ -3,14 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import Scores, StuId
 from utils.CQType import At, Face
 
 
 class QiuDao(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "QiuDao"
         self.type = "Group"
         self.author = "just monika / Heai"
@@ -40,7 +41,7 @@ class QiuDao(Plugins):
         user_id = event.user_id
         sender_card = event.card.split("-")
         if len(sender_card) != 3:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=group_id,
                 message=f"{At(qq=user_id)} 群名片格式不正确，请改正后再进行查询",
             )
@@ -55,18 +56,18 @@ class QiuDao(Plugins):
                 score = select_result.get("score")
                 query_user_id = select_result.get("user_id")
                 if int(query_user_id) != user_id:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=group_id,
                         message=f"{At(qq=user_id)} 该学号所有者的QQ号{query_user_id}，与你的QQ号{user_id}不匹配，不予查询！",
                     )
                     return
                 else:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=group_id,
                         message=f"{At(qq=user_id)} {self.trans_score(score)}",
                     )
             else:
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=group_id,
                     message=f"{At(qq=user_id)} 未查询到学号{stu_id}，QQ号{user_id}的信息！",
                 )

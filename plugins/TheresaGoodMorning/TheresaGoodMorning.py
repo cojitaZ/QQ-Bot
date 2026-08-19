@@ -3,6 +3,7 @@ import re
 import time
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 from utils.CQType import At, Reply
@@ -15,8 +16,8 @@ class TheresaGoodMorning(Plugins):
     插件功能：AI版本早安晚安\n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaGoodMorning"
         self.type = "Group"
         self.author = "Heai"
@@ -39,7 +40,7 @@ class TheresaGoodMorning(Plugins):
 
         if current_time - last_ask_time < self.cooldown_time:
             remaining = self.cooldown_time - int(current_time - last_ask_time)
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 提问太快啦，请等待{remaining}秒后再问哦~",
             )
@@ -72,9 +73,9 @@ class TheresaGoodMorning(Plugins):
 
             # 发送回复到群聊
             reply_message = Reply(id=event.message_id) + response
-            self.api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
             if message.startswith("Theresa 晚安"):
-                self.api.groupService.set_group_ban(
+                api.groupService.set_group_ban(
                     group_id=event.group_id,
                     user_id=event.user_id,
                     duration=self.get_seconds_to_next_6am(),
@@ -86,7 +87,7 @@ class TheresaGoodMorning(Plugins):
 
         except Exception as e:
             Log.error(f"插件：{self.name}运行时出错：{e}")
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 处理请求时出错了: {str(e)}",
             )

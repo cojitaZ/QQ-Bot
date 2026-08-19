@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.Models import Message
 from src.PrintLog import Log
@@ -15,8 +16,8 @@ from utils.CQType import Forward
 
 
 class GroupSum(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "GroupSum"
         self.type = "Group"
         self.author = "Heai"
@@ -78,7 +79,7 @@ class GroupSum(Plugins):
                 msg=f"话题：{topic.get('topic', '无')}\n参与者：{', '.join(map(str, topic.get('contributors', ['无'])))}\n详情：{topic.get('detail', '无')}",
             )
 
-        self.api.groupService.send_group_forward_msg(
+        api.groupService.send_group_forward_msg(
             group_id=event.group_id, forward_message=message.message
         )
         Log.debug(f"插件：{self.name}在群{event.group_id}完成总结并发送消息", debug)

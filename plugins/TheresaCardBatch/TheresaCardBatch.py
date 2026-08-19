@@ -3,8 +3,8 @@ from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
 class TheresaCardBatch(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaCardBatch"
         self.type = "Group"
         self.author = "Heai"
