@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from plugins import Plugins
 
 from .event_handler.GroupMessageEventHandler import GroupMessageEvent
-from .event_handler.NoticeEventHandler import GroupPokeEvent, GroupRecallEvent
+from .event_handler.NoticeEventHandler import GroupEmojiLikeEvent, GroupPokeEvent, GroupRecallEvent
 from .event_handler.PrivateMessageEventHandler import PrivateMessageEvent
 from .event_handler.RequestEventHandler import GroupRequestEvent
 from .event_handler.SendEventHandler import SendEvent
@@ -40,6 +40,10 @@ def create_event_app(event_controller: "Event") -> FastAPI:
                 event = GroupRecallEvent(data)
                 event.post_event(event_controller.debug)
                 event_controller.schedule_task(event_controller.run_group_recall(event))
+            elif notice_type == "group_msg_emoji_like":
+                event = GroupEmojiLikeEvent(data)
+                event.post_event(event_controller.debug)
+                event_controller.schedule_task(event_controller.run_group_emoji_like(event))
             elif notice_type == "notify":
                 sub_type = data.get("sub_type")
                 if sub_type == "poke":
@@ -129,3 +133,6 @@ class Event:
 
     async def run_send_event(self, event) -> None:
         await self.run_plugins_by_types(event, {"Send", "Record"})
+
+    async def run_group_emoji_like(self, event) -> None:
+        await self.run_plugins_by_types(event, {"GroupEmojiLike"})
