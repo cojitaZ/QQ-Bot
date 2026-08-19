@@ -1,3 +1,5 @@
+# CQ 码辅助类定义
+
 from typing import Literal
 
 

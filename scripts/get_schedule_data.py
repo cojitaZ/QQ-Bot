@@ -1,4 +1,5 @@
-# one-time-use(every-semester) script to get course schedule data.
+# 用于 Schedule 插件获取同济大学课程信息的脚本，需每学期执行一次，手动填写 calendar_id 和 session_id
+# uv run scripts/get_schedule_data.py
 
 import os
 import re
@@ -12,6 +13,10 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from src.Models import Courses
+
+calendar_id = 122  # 26271
+session_id = ""  # 自行登录1系统获取
+
 
 database = create_engine(os.environ.get("pg_conn", "your_pg_connection_string"))
 Session = sessionmaker(bind=database)
@@ -106,11 +111,9 @@ def get_course_list(session_id: str, calendar_id: int, dept_id: str) -> list[dic
 
 
 if __name__ == "__main__":
-    session_id = ""  # 自行登录1系统获取
     if session_id == "":
         print("请在代码中填写 session_id 后再运行")
         exit(1)
-    calendar_id = 122  # 26271
     dept_list = get_dept_list(session_id)
     all_courses = []
     for dept_id in dept_list:

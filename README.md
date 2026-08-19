@@ -5,7 +5,9 @@
 一款由 Python 编写的基于 onebot 协议的 qq 机器人后端框架，使用面向对象的思想实现了便于插件管理和开发的框架环境，部分插件主要用于高级语言程序设计课程群聊管理
 
 ## 启动准备
+
 ### 代码及依赖
+
 - 本项目使用 uv 进行依赖管理 [uv安装文档](https://docs.astral.sh/uv/getting-started/installation/)
 - 拉取项目代码及初始化
 
@@ -28,7 +30,7 @@
   uv run pre-commit install
   ```
 
-> 安装所有依赖：`uv sync --all-extras`
+  > 安装所有依赖：`uv sync --all-extras`
 
 ### 使用 LLBot 作为监听端
 
@@ -69,9 +71,7 @@ cp configs/plugins.toml.template configs/plugins.toml
 
 > 对于 `configs` 文件夹下的每个配置文件，需要复制一份去掉 `.template` 后缀的文件，并根据需要修改配置项，bot 启动时如无法找到配置文件会自动复制模板文件
 
-#### `configs/bot.toml`
-
-#### bot 基础信息配置
+#### `configs/bot.toml` bot 基础信息及 Gitea Webhook 配置
 
 配置项 | 说明
 ------|----
@@ -89,8 +89,6 @@ owner_id | 机器人所有者QQ号
 assistant_group | 助教群号（用于部分插件）
 enable_webhook_handler | 是否启用 Webhook Handler 服务（true/false），用于高程 Gitea 处理
 
-#### Gitea Webhook 集成配置
-
 当启用了 `enable_webhook_handler` 后，需要在 `[Gitea]` 节中配置以下项：
 
 | 配置项 | 说明 | 必填 |
@@ -104,6 +102,7 @@ enable_webhook_handler | 是否启用 Webhook Handler 服务（true/false），�
 
 
 #### `configs/groups.toml` 群聊插件启用信息配置
+
 ```toml
 [123456789]
 PluginName1 = true
@@ -116,6 +115,7 @@ PluginName3 = true
 决定了一个群聊（123456789）中启用哪些插件（PluginName1、PluginName2），未配置的插件默认不启用
 
 #### `configs/plugins.toml` 插件启用信息及部分特殊配置
+
 ```toml
 [PluginName1]
 enable = true
@@ -124,6 +124,7 @@ enable = true
 enable = false
 some_special_config = 123
 ```
+
 `enable` 决定插件是否启用，此处的启用优先级高于群聊配置，即，只要配置了 `enable = false`，该插件不会被加载，不会在任何群聊中生效
 
 其余可包含插件需要读取的特殊配置项，建议将插件中需要可变的配置项写入此文件
@@ -132,26 +133,24 @@ some_special_config = 123
 
 供 AI 相关插件（TheresaChat、TheresaAI、GroupSum 等）使用，分为三部分：
 
-- `[provider.*]`：模型服务商配置（`base_url`、`api_key` 等）
-- `[profile.*]`：具名模型配置，指定 provider、model 及可选参数，插件按名称引用
+- `[provider.*]`：模型服务商配置
+- `[profile.*]`：模型配置，指定 provider、model 及可选参数，插件按名称引用
 - `[tool.*]`：AI 可调用的工具定义，供 profile 中的 `tools` 列表引用
 
-模板已包含完整示例，一般只需填入各 provider 的 `api_key`，并按需增改 profile
+模板包含完整示例，一般只需按需增改 provider、profile 及填入 api_key
 
 ### 初始化数据库
 
-若 `bot.toml` 中 `database_enable = true`，首次启动前需手动执行建表脚本：
+若 `bot.toml` 中 `database_enable = true`，首次启动前需有可用的 PostgreSQL 数据库，并手动执行建表脚本
 
 ```bash
-uv run python scripts/create_tables.py
+uv run scripts/create_tables.py
 ```
-
-> 建表脚本以 `src/Models.py` 为唯一表结构来源，且幂等：只创建缺失的表，已存在的表不会被修改。若后续修改了已有表的字段，需手动同步数据库（项目暂无迁移工具）。
 
 ### 启动 bot
 
 ```bash
-uv run python main.py
+uv run main.py
 ```
 
 > 与 LLBot 类似，长期运行建议编写 systemd 服务脚本

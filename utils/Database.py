@@ -1,4 +1,4 @@
-"""数据库连接相关的公共工具。"""
+# 数据库连接相关工具
 
 from sqlalchemy.engine import URL
 
