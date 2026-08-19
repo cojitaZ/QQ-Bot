@@ -11,14 +11,14 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
 from src.Models import Courses
+from utils.Database import load_database_url
 
 calendar_id = 122  # 26271
 session_id = ""  # 自行登录1系统获取
 
 
-database = create_engine(os.environ.get("pg_conn", "your_pg_connection_string"))
+database = create_engine(load_database_url())
 Session = sessionmaker(bind=database)
 
 
