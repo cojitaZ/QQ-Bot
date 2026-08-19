@@ -9,6 +9,7 @@ import tomlkit
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from plugins import Plugins
+from utils.Database import build_database_url
 
 from .AIService import AIService
 from .Api import Api
@@ -121,8 +122,12 @@ class Bot:
         Log.info("开始创建与数据库之间的连接")
         try:
             self.database: AsyncEngine = create_async_engine(
-                f"postgresql+asyncpg://"
-                f"{self.database_username}:{self.database_passwd}@{self.database_address}/{self.database_name}"
+                build_database_url(
+                    self.database_username,
+                    self.database_passwd,
+                    self.database_address,
+                    self.database_name,
+                )
             )
             Log.info("成功连接到bot数据库")
         except Exception as e:
