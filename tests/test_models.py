@@ -44,7 +44,7 @@ def defines_database_model(source, filename="<unknown>"):
 def test_message_formatted_time_uses_china_standard_time():
     message = models.Message(send_time=datetime(2026, 8, 2, 0, 30, tzinfo=UTC))
 
-    assert message.formatted_time == "08:30"
+    assert message.formatted_time == "08/02 08:30"
 
 
 @pytest.mark.parametrize(

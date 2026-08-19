@@ -21,7 +21,7 @@ class Message(Base):
 
     @property
     def formatted_time(self) -> str:
-        return self.send_time.astimezone(timezone(timedelta(hours=8))).strftime("%H:%M")
+        return self.send_time.astimezone(timezone(timedelta(hours=8))).strftime("%m/%d %H:%M")
 
 
 class AskMessage(Base):

@@ -33,7 +33,7 @@ class TheresaChat(Plugins):
         self.author = "Heai"
         self.introduction = """
                                 聊天插件
-                                usage: auto
+                                usage: 小特
                             """
         self.init_status()
 
@@ -60,6 +60,9 @@ class TheresaChat(Plugins):
 
     @plugin_main(check_call_word=False, require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
+        if event.user_id == 1478624641:
+            return
+
         # 从数据库读取的上下文消息条数
         self.context_length = self.config.get("context_length", 100)
         self.extra_context = self.config.get("extra_context", 100)
@@ -102,8 +105,8 @@ class TheresaChat(Plugins):
             )
             return
 
-        if ("小特" not in clean_message) or ("Theresa" in clean_message):
-            if r < 0.01:
+        if ("小特" not in clean_message) or clean_message.startswith("Theresa"):
+            if r < 0.005:
                 face_flag = True
             else:
                 return
