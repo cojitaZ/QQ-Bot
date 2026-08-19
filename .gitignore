@@ -1,11 +1,17 @@
-/log.out*
+# cache
 __pycache__/
+/.ruff_cache/
+/.pytest_cache/
+
+# config
+/configs/*.toml
+
+# runtime
 temp/
+/.venv/
+/log.out*
+/plugins/*/data/
+
+# local plugins
 /plugins/TheresaLuck/
 /plugins/TheresaCardSP/
-/plugins/*/data/
-.venv/
-.ruff_cache/
-.pytest_cache/
-/configs/*.ini
-/configs/*.toml
