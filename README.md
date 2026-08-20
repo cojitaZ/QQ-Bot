@@ -67,9 +67,10 @@ cp configs/bot.toml.template configs/bot.toml
 cp configs/ai.toml.template configs/ai.toml
 cp configs/groups.toml.template configs/groups.toml
 cp configs/plugins.toml.template configs/plugins.toml
+cp configs/scheduler.toml.template configs/scheduler.toml
 ```
 
-> 对于 `configs` 文件夹下的每个配置文件，需要复制一份去掉 `.template` 后缀的文件，并根据需要修改配置项，bot 启动时如无法找到配置文件会自动复制模板文件
+> 对于 `configs` 文件夹下的每个配置文件，需要复制一份去掉 `.template` 后缀的文件，并根据需要修改配置项，bot 启动时如无法找到配置文件将报错
 
 #### `configs/bot.toml` bot 基础信息及 Gitea Webhook 配置
 
@@ -138,6 +139,10 @@ some_special_config = 123
 - `[tool.*]`：AI 可调用的工具定义，供 profile 中的 `tools` 列表引用
 
 模板包含完整示例，一般只需按需增改 provider、profile 及填入 api_key
+
+#### `configs/scheduler.toml` 定时任务配置
+
+键名对应 `scheduled_tasks` 目录下的文件名，`enable` 决定是否启用该定时任务，`kwargs` 为注册任务时传递给 main 函数的参数
 
 ### 初始化数据库
 

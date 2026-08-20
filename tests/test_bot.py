@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from importlib import import_module
 from pkgutil import iter_modules
@@ -34,6 +35,17 @@ def get_tracked_plugin_names():
         text=True,
     ).stdout
     return sorted({line.split("/")[1] for line in output.splitlines() if line.count("/") >= 2})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_config_files():
+    """CI checkout 不含正式配置文件（/configs/*.toml 被 gitignore），从模板复制缺失项。"""
+    for template in sorted(os.listdir(configs_path)):
+        if not template.endswith(".toml.template"):
+            continue
+        config_path = os.path.join(configs_path, template[: -len(".template")])
+        if not os.path.isfile(config_path):
+            shutil.copyfile(os.path.join(configs_path, template), config_path)
 
 
 @pytest.fixture

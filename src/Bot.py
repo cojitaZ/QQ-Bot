@@ -3,7 +3,6 @@ import os
 import sys
 from importlib import import_module
 from pkgutil import iter_modules
-from shutil import copyfile
 
 import tomlkit
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -312,35 +311,18 @@ class Bot:
 
 def check_config_files(configs_path: str) -> None:
     """
-    如配置文件不存在，复制默认配置文件模板
+    检查配置文件目录下每个以 .template 结尾的文件是否有对应的正式配置文件
     """
-    if not os.path.isfile(os.path.join(configs_path, "bot.toml")):
-        Log.warning("配置文件bot.toml不存在，正在复制默认配置文件模板")
-        copyfile(
-            os.path.join(configs_path, "bot.toml.template"),
-            os.path.join(configs_path, "bot.toml"),
-        )
-    if not os.path.isfile(os.path.join(configs_path, "ai.toml")):
-        Log.warning("配置文件ai.toml不存在，正在复制默认配置文件模板")
-        copyfile(
-            os.path.join(configs_path, "ai.toml.template"),
-            os.path.join(configs_path, "ai.toml"),
-        )
-    if not os.path.isfile(os.path.join(configs_path, "groups.toml")):
-        Log.warning("配置文件groups.toml不存在，正在复制默认配置文件模板")
-        copyfile(
-            os.path.join(configs_path, "groups.toml.template"),
-            os.path.join(configs_path, "groups.toml"),
-        )
-    if not os.path.isfile(os.path.join(configs_path, "plugins.toml")):
-        Log.warning("配置文件plugins.toml不存在，正在复制默认配置文件模板")
-        copyfile(
-            os.path.join(configs_path, "plugins.toml.template"),
-            os.path.join(configs_path, "plugins.toml"),
-        )
-    if not os.path.isfile(os.path.join(configs_path, "scheduler.toml")):
-        Log.warning("配置文件scheduler.toml不存在，正在复制默认配置文件模板")
-        copyfile(
-            os.path.join(configs_path, "scheduler.toml.template"),
-            os.path.join(configs_path, "scheduler.toml"),
-        )
+    if not os.path.isdir(configs_path):
+        raise NotADirectoryError(f"配置文件目录无效：{configs_path}")
+
+    missing_files = []
+    files_to_check = ["ai", "bot", "plugins", "groups", "scheduler"]
+    suffix = ".toml"
+
+    for file in files_to_check:
+        if not os.path.isfile(os.path.join(configs_path, f"{file}{suffix}")):
+            missing_files.append(f"{file}{suffix}")
+
+    if missing_files:
+        raise FileNotFoundError(f"以下配置文件缺失：\n{'\n'.join(missing_files)}")
