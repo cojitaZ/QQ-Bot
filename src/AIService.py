@@ -132,6 +132,10 @@ class AIService:
                             "content": f"{result}",
                         }
                     )
+            Log.warning(
+                f"AI profile '{profile_name}' exceeded max_turns={profile.max_turns} without a final answer"
+            )
+            return "[NO REPLY]"
 
         except Exception as exc:
             raise AIProviderError(f"AI profile '{profile_name}' request failed: {exc}") from exc

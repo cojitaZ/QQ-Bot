@@ -25,9 +25,9 @@ class Scheduler:
             try:
                 module = __import__(module_name, fromlist=["main"])
                 module.main(self._scheduler, **kwargs)
+                Log.info(f"已注册定时任务：[{section}]")
             except Exception as e:
                 Log.error(f"加载定时任务 [{section}] 时出错: {e}")
-            Log.info(f"已注册定时任务：[{section}]")
 
         if self._scheduler.get_jobs():
             self._scheduler.start()
