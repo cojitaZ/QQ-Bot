@@ -1,5 +1,5 @@
 # cache
-__pycache__/
+**/__pycache__/
 /.ruff_cache/
 /.pytest_cache/
 
@@ -7,10 +7,14 @@ __pycache__/
 /configs/*.toml
 
 # runtime
-temp/
+**/temp/**
+!**/temp/**/
+!**/temp/**/.gitkeep
+/plugins/**/data/**
+!/plugins/**/data/**/
+!/plugins/**/data/**/.gitkeep
 /.venv/
 /log.out*
-/plugins/*/data/
 
 # local plugins
 /plugins/TheresaLuck/
