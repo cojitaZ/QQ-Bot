@@ -1,15 +1,17 @@
-from sqlalchemy import Column, Integer, Text, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.RequestEventHandler import GroupRequestEvent
+from src.Models import StuList
 from src.PrintLog import Log
 
 
 class GroupApprove(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "GroupApprove"
         self.type = "GroupRequest"
         self.author = "kiriko / Heai"
@@ -23,17 +25,6 @@ class GroupApprove(Plugins):
         self.session_factory = sessionmaker(
             bind=self.bot.database, class_=AsyncSession, expire_on_commit=False
         )
-        self.semester_dict = {
-            1082118774: 252620,
-            1084322221: 252620,
-            1070607202: 252620,
-            972200687: 252620,
-            1078859289: 252620,
-            1067419462: 252620,
-            972090094: 252620,
-            760848601: 252620,
-            555635776: 252620,
-        }
 
     @plugin_main(check_call_word=False, require_db=True)
     async def main(self, event: GroupRequestEvent, debug: bool):
@@ -43,14 +34,14 @@ class GroupApprove(Plugins):
         if event.sub_type != "add":
             return
         group_id = event.group_id
-        reject_flag = self.config.getboolean("reject")
-        strict_flag = self.config.getboolean("strict")
+        reject_flag = self.config.get("reject", False)
+        strict_flag = self.config.get("strict", False)
         flag = event.flag
         full_comment = event.comment
 
         # 允许助教
         if event.user_id in self.bot.assistant_list:
-            self.api.groupService.set_group_add_request(flag=flag)
+            api.groupService.set_group_add_request(flag=flag)
             Log.debug(f"{self.name}:{group_id}助教入群申请{flag}批准", debug)
             return
 
@@ -59,7 +50,7 @@ class GroupApprove(Plugins):
         if not self.format_check(real_answer):
             if reject_flag:
                 reject_reason = "请以正确格式申请入群"
-                self.api.groupService.set_group_add_request(
+                api.groupService.set_group_add_request(
                     flag=flag, approve=False, reason=reject_reason
                 )
                 Log.debug(
@@ -71,10 +62,12 @@ class GroupApprove(Plugins):
             return
 
         stu_id = int(real_answer[:7])
-        if not self.stu_id_conform(stu_id, strict_flag, self.semester_dict.get(group_id)):
+        if not self.stu_id_conform(
+            stu_id, strict_flag, self.config.get("semesters", {}).get(str(group_id))
+        ):
             if reject_flag:
                 reject_reason = "学号错误"
-                self.api.groupService.set_group_add_request(
+                api.groupService.set_group_add_request(
                     flag=flag, approve=False, reason=reject_reason
                 )
                 Log.debug(
@@ -84,11 +77,11 @@ class GroupApprove(Plugins):
             else:
                 Log.debug(f"{self.name}:{group_id}无信息入群申请{flag}挂起", debug)
         else:
-            self.api.groupService.set_group_add_request(flag=flag)
+            api.groupService.set_group_add_request(flag=flag)
             Log.debug(f"{self.name}:{group_id}正确入群申请{flag}批准", debug)
 
     def format_check(self, real_answer: str) -> bool:
-        parts = self.config.getint("parts")
+        parts = self.config.get("parts", 2)
         flag = False
         spacer_type = ""
         for spacer in self.spacer:
@@ -105,7 +98,9 @@ class GroupApprove(Plugins):
                 flag = False
         return flag
 
-    def stu_id_conform(self, stu_id: int, strict_flag: bool, semester: int) -> bool:
+    def stu_id_conform(self, stu_id: int, strict_flag: bool, semester: int | None) -> bool:
+        if semester is None:
+            raise ValueError("群聊学期未配置，请在配置文件中添加学期信息")
         if not strict_flag:
             i = semester // 10000 - semester % 10  # 252620 -> 25, 252621 -> 24
             i = i * 100000 + 50000
@@ -121,17 +116,7 @@ class GroupApprove(Plugins):
 
     async def select_all_inform(self) -> set[tuple[int, int]]:
         async with self.session_factory() as sessions:
-            stmt = select(self.StuLists.stu_id, self.StuLists.semester)
+            stmt = select(StuList.stu_id, StuList.semester)
             result = await sessions.execute(stmt)
             rows = result.all()
             return {tuple(row) for row in rows}
-
-    Base = declarative_base()
-
-    class StuLists(Base):
-        __tablename__ = "stulists"
-
-        semester = Column(Integer, primary_key=True)
-        stu_id = Column(Integer, primary_key=True)
-        name = Column(Text)
-        class_ = Column("class", Integer)

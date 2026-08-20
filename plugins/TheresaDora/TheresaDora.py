@@ -4,6 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from utils.CQHelper import CQHelper
 
@@ -241,8 +242,8 @@ def generate_img(
 
 
 class TheresaDora(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaDora"
         self.type = "Group"
         self.author = "Heai"
@@ -257,9 +258,9 @@ class TheresaDora(Plugins):
         group_id = event.group_id
         message = event.message
 
-        cmd = " ".join(message.split(" ")[1:])
+        cmd = " ".join(message.split()[1:])
         if not cmd:
-            self.api.groupService.send_group_msg(group_id=group_id, message="请输入内容")
+            api.groupService.send_group_msg(group_id=group_id, message="请输入内容")
             return
         cmd += "！"
 
@@ -267,5 +268,5 @@ class TheresaDora(Plugins):
 
         generate_img(cmd, path)
 
-        self.api.groupService.send_group_img(group_id=group_id, image_path=path)
+        api.groupService.send_group_img(group_id=group_id, image_path=path)
         return

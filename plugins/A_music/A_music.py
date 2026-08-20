@@ -6,6 +6,7 @@ import requests
 
 import plugins.A_music.music_api
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 
@@ -115,8 +116,8 @@ class get_music:
 
 
 class A_music(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "A_music"
         self.type = "Group"
         self.author = "cojitaZ"
@@ -140,10 +141,8 @@ class A_music(Plugins):
                     music = get_music()
                     music.download_music_by_id(id=id)
                     reply_message = music.name + "下载完成"
-                    self.api.groupService.send_group_msg(
-                        group_id=event.group_id, message=reply_message
-                    )
-                    self.api.groupService.send_group_record_msg(
+                    api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
+                    api.groupService.send_group_record_msg(
                         group_id=event.group_id, file_path=music.mp3_path
                     )
                 except Exception as e:
@@ -157,9 +156,7 @@ class A_music(Plugins):
                     keywords = message[7:]
                     music = get_music()
                     reply_message = music.search_music(keywords=keywords)
-                    self.api.groupService.send_group_msg(
-                        group_id=event.group_id, message=reply_message
-                    )
+                    api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
                 except Exception as e:
                     Log.error(f"插件{self.name}运行时出错，{e}")
                 else:

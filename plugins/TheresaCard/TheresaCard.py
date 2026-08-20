@@ -1,29 +1,20 @@
 import re
 import time
 
-from sqlalchemy import Column, Integer, Text, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import StuList
 from utils.CQType import At, Forward
-
-Base = declarative_base()
-
-
-class StuList(Base):
-    __tablename__ = "stulists"
-
-    semester = Column(Integer, primary_key=True)
-    stu_id = Column(Integer, primary_key=True)
-    name = Column(Text)
-    class_ = Column("class", Integer)
 
 
 class TheresaCard(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaCard"
         self.type = "Group"
         self.author = "Heai"
@@ -35,36 +26,12 @@ class TheresaCard(Plugins):
         self.session_factory = sessionmaker(
             bind=self.bot.database, class_=AsyncSession, expire_on_commit=False
         )
-
-        self.semester_dict = {
-            893688452: 252620,
-            1082118774: 252620,
-            1084322221: 252620,
-            1070607202: 252620,
-            972200687: 252620,
-            1078859289: 252620,
-            1067419462: 252620,
-            972090094: 252620,
-            760848601: 252620,
-            555635776: 252620,
-        }
-
-        self.class_dict = {
-            1070607202: 1,
-            972200687: 2,
-            1078859289: 3,
-            1067419462: 4,
-            972090094: 5,
-            760848601: 6,
-            555635776: 7,
-        }
-
         self.init_status()
 
     @plugin_main(call_word=["Theresa card"], require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
         # 可使用 kick
-        permission_ids: list[int] = list(map(int, self.config.get("permission_ids").split(",")))
+        permission_ids: list[int] = self.config.get("permission_ids", [])
         permission_ids.append(self.bot.owner_id)
         # 可使用普通检查
         if (
@@ -72,7 +39,7 @@ class TheresaCard(Plugins):
             and (event.role not in ["admin", "owner"])
             and (event.user_id not in self.bot.assistant_list)
         ):
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
+            api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
             return
 
         # 解析参数
@@ -81,32 +48,35 @@ class TheresaCard(Plugins):
         strict_flag = "strict" in event.message
         unenter_flag = "unenter" in event.message
         check_time_flag = False
-        check_class_flag = event.group_id in self.class_dict
-        if event.message.split(" ")[-1].isdigit():
-            time_limit_hours = int(event.message.split(" ")[-1])
+        check_class_flag = str(event.group_id) in self.config.get("classes", {})
+        if event.message.split()[-1].isdigit():
+            time_limit_hours = int(event.message.split()[-1])
             time_limit_seconds = time_limit_hours * 3600
             check_time_flag = True
         if kick_flag and (event.user_id not in permission_ids):
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
+            api.groupService.send_group_msg(group_id=event.group_id, message="权限不足")
             return
         if strict_flag or unenter_flag:
-            semester = self.semester_dict.get(event.group_id)
+            semester = self.config.get("semesters", {}).get(str(event.group_id))
             if semester is None:
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=event.group_id,
                     message=f"未设定群 {event.group_id} 学期信息，请联系 bot 管理员",
                 )
                 return
 
         # 获取群成员列表，初始化变量
-        group_member_list = self.api.groupService.get_group_member_list(
-            group_id=event.group_id
-        ).get("data")
-        ignored_ids: list[int] = list(map(int, self.config.get("ignored_ids").split(",")))
+        group_member_list = api.groupService.get_group_member_list(group_id=event.group_id).get(
+            "data"
+        )
+        ignored_ids: list[int] = self.config.get("ignored_ids", [])
         not_allowed_ids = []
         not_allowed_cards = []
         strict_candidates: list[tuple[int, int, str, str]] = []
         not_entered: dict[int, str] = {}
+
+        seen_stu_ids: dict[int, int] = {}
+        repeated_stu_ids: dict[int, list[int]] = {}
 
         # 执行检查
         for member in group_member_list:
@@ -130,15 +100,24 @@ class TheresaCard(Plugins):
 
                 not_allowed_ids.append(user_id)
                 not_allowed_cards.append(card)
-            elif strict_flag or unenter_flag:
-                if user_id not in self.bot.assistant_list:
-                    strict_candidates.append((user_id, stu_id, name, card))
+            else:
+                if stu_id in seen_stu_ids:
+                    if stu_id in repeated_stu_ids:
+                        repeated_stu_ids[stu_id].append(user_id)
+                    else:
+                        repeated_stu_ids[stu_id] = [seen_stu_ids[stu_id], user_id]
+                else:
+                    seen_stu_ids[stu_id] = user_id
+
+                if strict_flag or unenter_flag:
+                    if user_id not in self.bot.assistant_list:
+                        strict_candidates.append((user_id, stu_id, name, card))
 
         if strict_flag or unenter_flag:
             stu_ids = {stu_id for _, stu_id, _, _ in strict_candidates}
         if strict_flag and strict_candidates:
             if check_class_flag:
-                class_ = self.class_dict[event.group_id]
+                class_ = self.config.get("classes", {}).get(str(event.group_id))
                 db_name_map = await self.check_in_list_batch(semester, stu_ids, class_=class_)
             else:
                 db_name_map = await self.check_in_list_batch(semester, stu_ids)
@@ -170,16 +149,24 @@ class TheresaCard(Plugins):
             if len(entry_lines) > 20:
                 for entry_chunk in chunked(entry_lines, 20):
                     message = "\n".join(entry_chunk)
-                    self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
-                self.api.groupService.send_group_msg(
-                    group_id=event.group_id, message=suffix.strip()
-                )
+                    api.groupService.send_group_msg(group_id=event.group_id, message=message)
+                api.groupService.send_group_msg(group_id=event.group_id, message=suffix.strip())
             else:
                 message = "\n".join(entry_lines) + suffix
-                self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
+                api.groupService.send_group_msg(group_id=event.group_id, message=message)
         else:
             message = "所有群成员名片格式均符合要求"
-            self.api.groupService.send_group_msg(group_id=event.group_id, message=message)
+            api.groupService.send_group_msg(group_id=event.group_id, message=message)
+
+        if repeated_stu_ids:
+            api.groupService.send_group_msg(
+                group_id=event.group_id,
+                message="以下学号重复：\n"
+                + "\n".join(
+                    f"{stu_id}:\n{'\n'.join(f'{At(qq=uid)}' for uid in uids)}"
+                    for stu_id, uids in repeated_stu_ids.items()
+                ),
+            )
 
         if unenter_flag:
             if strict_candidates:
@@ -190,21 +177,19 @@ class TheresaCard(Plugins):
                         type="text", msg=f"以下成员已选课但未入群，共{len(not_entered)}人"
                     )
                     forward.add_node(type="text", msg="\n".join(not_entered_lines))
-                    self.api.groupService.send_group_forward_msg(
+                    api.groupService.send_group_forward_msg(
                         group_id=event.group_id, forward_message=forward.message
                     )
                 else:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=event.group_id, message="所有已选课成员均已入群"
                     )
             else:
-                self.api.groupService.send_group_msg(
-                    group_id=event.group_id, message="所有成员均未入群"
-                )
+                api.groupService.send_group_msg(group_id=event.group_id, message="所有成员均未入群")
 
         if kick_flag:
             for user_id in not_allowed_ids:
-                self.api.groupService.set_group_kick(group_id=event.group_id, user_id=user_id)
+                api.groupService.set_group_kick(group_id=event.group_id, user_id=user_id)
         return
 
     def basic_card_check(self, card: str) -> tuple[bool, int | None, str | None]:

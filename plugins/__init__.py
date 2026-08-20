@@ -1,10 +1,9 @@
 # plugins/__init__.py
-import configparser
 import os
 from functools import wraps
 from typing import TYPE_CHECKING
 
-from src.Api import Api
+import tomlkit
 
 if TYPE_CHECKING:
     from src.Bot import Bot
@@ -28,16 +27,16 @@ def plugin_main(check_call_word=True, call_word: list = None, check_group=True, 
 
             # 检查群权限
             if check_group and hasattr(event, "group_id"):
-                group_id = event.group_id
-                if group_id not in self.effected_groups:
+                if event.group_id not in self.effected_groups:
                     return
 
             # 检查触发词
             if check_call_word and call_word is not None:
                 if not hasattr(event, "message"):
                     return
-                message = event.message
-                if not any(message.startswith(word) for word in call_word):
+                msg_list = event.message.split()
+                msg = " ".join(msg_list)
+                if not any(msg.startswith(word) for word in call_word):
                     return
 
             # 更新运行状态
@@ -56,9 +55,7 @@ class Plugins:
     插件的父类，所有编写的插件都继承这个类
     """
 
-    def __init__(self, server_address: str, bot):
-        self.server_address = server_address
-        self.api: Api = Api(server_address)
+    def __init__(self, bot):
         self.bot: Bot = bot
         self.name = "name"
         self.type = "type"
@@ -66,7 +63,7 @@ class Plugins:
         self.introduction = "xxx"
         self.status = None  # running/disable/error
         self.error_info = ""
-        self.config: configparser.SectionProxy = None
+        self.config: dict = None
         self.effected_groups: list[int] = []
 
     async def main(self, event, debug: bool):
@@ -91,19 +88,17 @@ class Plugins:
 
     def load_effected_groups(self):
         """
-        用于从插件的配置文件中加载插件的生效群聊列表
+        用于从群聊配置文件中加载插件的生效群聊列表
         :return: 不返回值，直接赋值给self.effected_groups
         """
-        g_config = configparser.ConfigParser()
-        with open(os.path.join(self.bot.configs_path, "groups.ini"), encoding="utf-8") as f:
-            g_config.read_file(f)
+        with open(os.path.join(self.bot.configs_path, "groups.toml"), encoding="utf-8") as f:
+            groups_config = tomlkit.load(f).unwrap()
 
         self.effected_groups = []
-        for section in g_config.sections():
+        for section in groups_config:
             if section.isdigit():
                 # 检查该插件在此群是否启用
-                if g_config.has_option(section, self.name):
-                    if g_config.getboolean(section, self.name):
-                        # 提取群号
-                        group_id = int(section)
-                        self.effected_groups.append(group_id)
+                if self.name in groups_config[section] and groups_config[section][self.name]:
+                    # 提取群号
+                    group_id = int(section)
+                    self.effected_groups.append(group_id)

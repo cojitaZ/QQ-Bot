@@ -1,3 +1,5 @@
+# CQ 码辅助类定义
+
 from typing import Literal
 
 
@@ -123,6 +125,19 @@ class Forward:
         if sender_name:
             node["data"]["name"] = sender_name
 
+        self.message.append(node)
+
+    def add_mixed_node(self, segments, uid=None, sender_name=None):
+        """
+        为合并转发消息添加一个混合内容节点，单节点内可同时包含文本与图片等多种段。
+        :param segments: content 段列表，每项形如 {"type": "text", "data": {"text": ...}}
+                         或 {"type": "image", "data": {"file": "file://..."}}。
+        """
+        node = {"type": "node", "data": {"content": list(segments)}}
+        if uid:
+            node["data"]["uin"] = uid
+        if sender_name:
+            node["data"]["name"] = sender_name
         self.message.append(node)
 
 

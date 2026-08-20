@@ -1,3 +1,5 @@
+# 从字符串中提取 CQ 码并封装为对象的辅助工具
+
 import re
 from typing import Any
 

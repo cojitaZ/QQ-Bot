@@ -9,8 +9,8 @@ from src.PrintLog import Log
 
 
 class ExamplePlugin(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "ExamplePlugin"  # 插件的名字
         self.type = "Group"  # 插件的类型（这个插件是在哪种消息类型中触发的）
         self.author = "somebody"  # 插件开发作者（不用留真名，但是当插件报错的时候需要根据这个名字找到对应的人来修）
@@ -33,9 +33,9 @@ class ExamplePlugin(Plugins):
         """
 
         # 读取 plugins.ini 中的配置项
-        # 由于项目结构设计限制及保证配置动态加载能力，不得在 __init__ 中读取
-        self.config.get("some_config")
-
+        # 由于项目结构设计限制，不得在 __init__ 中读取
+        some_config = self.config.get("some_config", "default_value")
+        some_config += "!"
         self.set_status("error")
         Log.debug("成功将该插件状态变为error", debug)
         Log.error(f"这个错误是由测试插件：{self.name}主动产生的，Nothing goes wrong！")

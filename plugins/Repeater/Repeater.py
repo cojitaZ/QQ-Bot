@@ -1,6 +1,7 @@
 import random
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
 
@@ -12,8 +13,8 @@ class Repeater(Plugins):
     插件功能：当群聊有一定数量条复读消息时，bot会撤回最后一个复读消息并禁言该用户十分钟 \n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "Repeater"
         self.type = "Group"
         self.author = "kiriko"
@@ -28,10 +29,10 @@ class Repeater(Plugins):
     @plugin_main(check_call_word=False)
     async def main(self, event: GroupMessageEvent, debug: bool):
         group_id = event.group_id
-        threshold = self.config.getint("threshold")
-        ban = self.config.getboolean("ban")
-        recall = self.config.getboolean("recall")
-        for_everyone = self.config.getboolean("for_everyone")
+        threshold = self.config.get("threshold", 2)
+        ban = self.config.get("ban", False)
+        recall = self.config.get("recall", False)
+        for_everyone = self.config.get("for_everyone", False)
 
         if not self.message_latest.get(group_id):
             self.message_latest[group_id] = ""
@@ -49,7 +50,7 @@ class Repeater(Plugins):
 
         # 到达阈值时正式进行插件的运行
         if self.counts[group_id] >= threshold:
-            ignored_ids: list[int] = list(map(int, self.config.get("ignored_ids").split(",")))
+            ignored_ids: list[int] = self.config.get("ignored_ids", [])
             reply_message = self.config.get("normal_message")
             card_cuts = event.card.split("-")
             ban_time = self.config.get("ban_time")
@@ -69,9 +70,7 @@ class Repeater(Plugins):
             if event.user_id in ignored_ids:
                 return
             if event.role in ["admin", "owner"]:
-                self.api.groupService.send_group_msg(
-                    group_id=group_id, message="管理员带头复读，当罚"
-                )
+                api.groupService.send_group_msg(group_id=group_id, message=reply_message)
                 return
 
             Log.debug(
@@ -80,12 +79,12 @@ class Repeater(Plugins):
             )
 
             if recall:
-                self.api.groupService.delete_msg(message_id=event.message_id)
+                api.groupService.delete_msg(message_id=event.message_id)
 
             if ban:
-                self.api.groupService.set_group_ban(
+                api.groupService.set_group_ban(
                     group_id=group_id, user_id=event.user_id, duration=duration
                 )
 
-            self.api.groupService.send_group_msg(group_id=group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=group_id, message=reply_message)
         return

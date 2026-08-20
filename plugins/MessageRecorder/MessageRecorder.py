@@ -1,35 +1,21 @@
 import re
 
-from sqlalchemy import BigInteger, Column, DateTime, Text, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.event_handler.SendEventHandler import SendEvent
+from src.Models import Message
 from utils.CQHelper import CQHelper
-
-Base = declarative_base()
 
 PATTERN = re.compile(r"\[CQ:reply,id=(-?\d+)\]")
 
 
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False)
-    group_id = Column(BigInteger, nullable=False)
-    msg = Column(Text, nullable=False)
-    send_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    msg_id = Column(BigInteger, nullable=False, default=0)
-    user_nickname = Column(Text, nullable=False, default=" ")
-    user_card = Column(Text, nullable=False, default=" ")
-
-
 class MessageRecorder(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "MessageRecorder"
         self.type = "Record"
         self.author = "Heai"
@@ -47,9 +33,7 @@ class MessageRecorder(Plugins):
         for cq in cqs:
             if cq.cq_type == "image":
                 msg = str(cq)
-                cq.path = (
-                    self.api.messageService.get_image(cq.file).get("data", {}).get("file", None)
-                )
+                cq.path = api.messageService.get_image(cq.file).get("data", {}).get("file", None)
                 del cq.url
                 if cq.path is not None:
                     message = message.replace(msg, str(cq))

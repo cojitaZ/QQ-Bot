@@ -1,82 +1,68 @@
-import re
-
 import uvicorn
 from fastapi import FastAPI, Request
+from pydantic import ValidationError
 
-from src.Api import Api
-
-from .Models import GiteaIssueCommentEvent, GiteaIssueLabelEvent, GiteaIssuesEvent, GiteaPushEvent
+from src.gitea.Models import GiteaPushEvent, GiteaWebhookEvent
+from src.PrintLog import Log
+from src.webhook_handler.EventConfig import EVENT_CONFIG, EventConfig
+from src.webhook_handler.NotificationService import NotificationService
 
 app = FastAPI(title="Webhook Handler")
 
 
 @app.post("/api/tjhlp")
 async def receive_post(request: Request):
-    handler: WebhookHandler = app.state.handler
-    payload = await request.json()
-    event_type = request.headers.get("X-Gogs-Event-Type", "")
-    match event_type:
-        case "push":
-            await handler.resolve_push(GiteaPushEvent.model_validate(payload))
-        case "issues":
-            await handler.resolve_issues(GiteaIssuesEvent.model_validate(payload))
-        case "issue_comment":
-            await handler.resolve_issue_comment(GiteaIssueCommentEvent.model_validate(payload))
-        case "issue_label":
-            await handler.resolve_issue_label(GiteaIssueLabelEvent.model_validate(payload))
-        case _:
-            print(f"Unsupported X-Gogs-Event-Type: {event_type}")
-            return {"ok": False, "message": f"Unsupported X-Gogs-Event-Type: {event_type}"}
+    handler: WebhookHandler | None = getattr(app.state, "handler", None)
+    if not isinstance(handler, WebhookHandler):
+        Log.error("WebhookHandler 未初始化")
+        return {"ok": False, "message": "WebhookHandler 未初始化"}
 
+    payload = await request.json()
+    event_type = request.headers.get("X-Gitea-Event-Type") or request.headers.get(
+        "X-Gogs-Event-Type", ""
+    )
+
+    try:
+        event = parse_gitea_event(event_type, payload)
+        config = EVENT_CONFIG[event_type]
+    except (ValueError, ValidationError) as e:
+        Log.warning(f"Gitea webhook {event_type} 解析失败: {e}")
+        return {"ok": False, "message": str(e)}
+
+    await handler.resolve(event, event_type, config)
     return {"ok": True}
 
 
-def replace_markdown_images(text: str, replacement_list: list[str]) -> str:
-    pattern = r"!\[.*?\]\(.*?\)"
+def log_recoverable_payload_anomalies(data: GiteaWebhookEvent, event_type: str) -> None:
+    if isinstance(data, GiteaPushEvent):
+        if data.total_commits > 0 and data.head_commit is None and not data.commits:
+            Log.warning(
+                "Gitea push payload 缺少提交详情："
+                f"event_type={event_type}, repo={data.repository.full_name}, "
+                f"ref={data.ref}, total_commits={data.total_commits}, after={data.after}"
+            )
 
-    replacements = iter(replacement_list)
 
-    def replacer(match):
-        try:
-            return next(replacements)
-        except StopIteration:
-            return match.group(0)
-
-    result = re.sub(pattern, replacer, text)
-    return result
+def parse_gitea_event(event_type: str, payload: dict) -> GiteaWebhookEvent:
+    """将 webhook 原始 payload 解析为对应的事件模型。"""
+    config = EVENT_CONFIG.get(event_type)
+    if config is None:
+        raise ValueError(f"Unsupported Gitea webhook event type: {event_type}")
+    return config.model.model_validate(payload)
 
 
 class WebhookHandler:
-    def __init__(self, api: Api, response_group: int):
-        self.api: Api = api
+    def __init__(self, response_group: int, gitea_api_url: str, gitea_api_token: str):
         self.response_group: int = response_group
+        self.notification_service = NotificationService(
+            response_group, gitea_api_url, gitea_api_token
+        )
         self.server = None
         app.state.handler = self
 
-    async def resolve_push(self, data: GiteaPushEvent) -> None:
-        print("Received push event")
-
-    async def resolve_issues(self, data: GiteaIssuesEvent) -> None:
-        print("Received issues event")
-
-        if data.issue.body is None:
-            data.issue.body = ""
-        image_urls: list[str] = []
-        for pic in data.issue.assets:
-            image_urls.append(pic.browser_download_url)
-
-        content = replace_markdown_images(data.issue.body, image_urls)
-
-        self.api.groupService.send_group_msg(
-            group_id=self.response_group,
-            message=f"issue #{data.number} {data.action} in {data.repository.name}\n{data.issue.title}\n{content}\nurl: {data.issue.html_url}",
-        )
-
-    async def resolve_issue_comment(self, data: GiteaIssueCommentEvent) -> None:
-        print("Received issue_comment event")
-
-    async def resolve_issue_label(self, data: GiteaIssueLabelEvent) -> None:
-        print("Received issue_label event")
+    async def resolve(self, data: GiteaWebhookEvent, event_type: str, config: EventConfig) -> None:
+        log_recoverable_payload_anomalies(data, event_type)
+        await self.notification_service.send(data, event_type, config)
 
     async def run(self, ip, port) -> None:
         config = uvicorn.Config(app=app, host=ip, port=port, log_level="warning", access_log=False)

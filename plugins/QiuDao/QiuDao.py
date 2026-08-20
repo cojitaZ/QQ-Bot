@@ -1,52 +1,35 @@
-from sqlalchemy import Column, Integer, String, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import Scores, StuId
 from utils.CQType import At, Face
-
-Base = declarative_base()
-
-
-class Scores(Base):
-    __tablename__ = "scores"
-
-    semester = Column(Integer, primary_key=True)
-    stu_id = Column(Integer, primary_key=True)
-    score = Column(Integer, nullable=False)
-
-
-class StuId(Base):
-    __tablename__ = "stu_qq_id_map"
-
-    stu_id = Column(Integer, primary_key=True)
-    qq_id = Column(String)
 
 
 class QiuDao(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "QiuDao"
         self.type = "Group"
         self.author = "just monika / Heai"
-        self.introduction = """
+        self.introduction = f"""
                                 根据高程期末考试成绩发送对应的表情
-                                usage: Theresa 求刀/公开我的期末成绩吧
+                                {Face(id=63)} = [90, 100]
+                                {Face(id=112)} = [80, 90)
+                                {Face(id=112)}{Face(id=112)} = [70, 80)
+                                {Face(id=112)}{Face(id=112)}{Face(id=112)} = [60, 70)
+                                {Face(id=112)}{Face(id=112)}{Face(id=112)}{Face(id=112)} = [0, 60)
+                                usage: Theresa 公开我的刀数
                             """
         self.init_status()
-        self.semester_dict = {
-            893688452: 252611,
-            783564589: 252611,
-            861871927: 252610,
-            110275974: 252610,
-            927504458: 252610,
-        }
         self.session_factory = sessionmaker(
             bind=self.bot.database, class_=AsyncSession, expire_on_commit=False
         )
 
-    @plugin_main(call_word=["Theresa 求刀", "Theresa 公开我的期末成绩吧"], require_db=True)
+    @plugin_main(call_word=["Theresa 求刀", "Theresa 公开我的刀数"], require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
         group_id = event.group_id
 
@@ -58,7 +41,7 @@ class QiuDao(Plugins):
         user_id = event.user_id
         sender_card = event.card.split("-")
         if len(sender_card) != 3:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=group_id,
                 message=f"{At(qq=user_id)} 群名片格式不正确，请改正后再进行查询",
             )
@@ -66,25 +49,25 @@ class QiuDao(Plugins):
         else:
             stu_id = int(sender_card[0])
             select_result = None
-            semester_id = self.semester_dict.get(group_id)
+            semester_id = self.config.get("semesters", {}).get(str(group_id))
             select_result = await self.query_by_stu_id(stu_id, semester_id)
 
             if select_result is not None:
                 score = select_result.get("score")
                 query_user_id = select_result.get("user_id")
                 if int(query_user_id) != user_id:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=group_id,
                         message=f"{At(qq=user_id)} 该学号所有者的QQ号{query_user_id}，与你的QQ号{user_id}不匹配，不予查询！",
                     )
                     return
                 else:
-                    self.api.groupService.send_group_msg(
+                    api.groupService.send_group_msg(
                         group_id=group_id,
                         message=f"{At(qq=user_id)} {self.trans_score(score)}",
                     )
             else:
-                self.api.groupService.send_group_msg(
+                api.groupService.send_group_msg(
                     group_id=group_id,
                     message=f"{At(qq=user_id)} 未查询到学号{stu_id}，QQ号{user_id}的信息！",
                 )

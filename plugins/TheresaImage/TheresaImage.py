@@ -1,16 +1,16 @@
 import re
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
-from utils.AITools import encode_image, get_llm_response
 from utils.CQHelper import CQHelper
 from utils.CQType import At, Reply
 
 
 class TheresaImage(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaImage"
         self.type = "Group"
         self.author = "Heai"
@@ -28,13 +28,12 @@ class TheresaImage(Plugins):
             if match:
                 msg_id = match.group(1)
                 prompt = match.group(2).strip()
-                msg_str = (
-                    self.api.messageService.get_msg(message_id=msg_id).get("data").get("message")
-                )
+                msg_str = api.messageService.get_msg(message_id=msg_id).get("data").get("message")
                 image_path = self.get_image_filename_from_msg(msg_str)
                 if image_path:
-                    response = await get_llm_response(
-                        messages=[
+                    response = await self.bot.ai.generate(
+                        "image_simple",
+                        [
                             {
                                 "role": "system",
                                 "content": "尽可能简短、直接地回答用户的问题，不得输出markdown格式。",
@@ -45,24 +44,21 @@ class TheresaImage(Plugins):
                                     {"type": "text", "text": prompt},
                                     {
                                         "type": "image_url",
-                                        "image_url": {"url": encode_image(image_path)},
+                                        "image_url": {"url": self.bot.ai.encode_image(image_path)},
                                     },
                                 ],
                             },
                         ],
-                        model="gemini-3-flash-preview",
                     )
                     reply_message = Reply(id=event.message_id) + response
-                    self.api.groupService.send_group_msg(
-                        group_id=event.group_id, message=reply_message
-                    )
+                    api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
                     Log.debug(
                         f"插件：{self.name}运行正确，成功回答用户{event.user_id}的问题{prompt}",
                         debug,
                     )
         except Exception as e:
             Log.error(f"插件：{self.name}运行时出错：{e}")
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 处理请求时出错了: {str(e)}",
             )
@@ -71,5 +67,5 @@ class TheresaImage(Plugins):
     def get_image_filename_from_msg(self, msg: str) -> str | None:
         result = CQHelper.load_cq(msg)
         if result is not None:
-            return self.api.messageService.get_image(file_name=result.file).get("data").get("file")
+            return api.messageService.get_image(file_name=result.file).get("data").get("file")
         return None

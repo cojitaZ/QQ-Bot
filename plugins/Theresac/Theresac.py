@@ -3,12 +3,13 @@ from html import unescape
 from subprocess import PIPE
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 
 
 class Theresac(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "Theresac"
         self.type = "Group"
         self.author = "Heai"
@@ -23,10 +24,10 @@ class Theresac(Plugins):
         message = unescape(event.message)
 
         if not event.user_id == self.bot.owner_id:
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="无权限")
+            api.groupService.send_group_msg(group_id=event.group_id, message="无权限")
             return
 
-        cmd = " ".join(message.split(" ")[1:])
+        cmd = " ".join(message.split()[1:])
         result = await create_subprocess_shell(cmd, stdout=PIPE, stderr=PIPE)
         stdout, stderr = await result.communicate()
 
@@ -41,5 +42,5 @@ class Theresac(Plugins):
 
         msg = msg.replace("[CQ:", "\\CQ:").strip()
 
-        self.api.groupService.send_group_msg(group_id=event.group_id, message=msg)
+        api.groupService.send_group_msg(group_id=event.group_id, message=msg)
         return

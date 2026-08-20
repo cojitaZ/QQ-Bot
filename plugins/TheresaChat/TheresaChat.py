@@ -4,38 +4,20 @@ import random
 import re
 import time
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from jinja2 import Template
-from sqlalchemy import BigInteger, Column, DateTime, Text, desc, func, select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import Message
 from src.PrintLog import Log
-from utils.AITools import encode_image, get_llm_response
 from utils.CQHelper import CQHelper
 from utils.CQType import CQMessage
-
-Base = declarative_base()
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False)
-    group_id = Column(BigInteger, nullable=False)
-    msg = Column(Text, nullable=False)
-    send_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    msg_id = Column(BigInteger, nullable=False, default=0)
-    user_nickname = Column(Text, nullable=False, default=" ")
-    user_card = Column(Text, nullable=False, default=" ")
-
-    @property
-    def formatted_time(self) -> str:
-        return self.send_time.astimezone(timezone(timedelta(hours=8))).strftime("%H:%M")
 
 
 class TheresaChat(Plugins):
@@ -45,14 +27,14 @@ class TheresaChat(Plugins):
     插件功能：记录上下文并智能回复 \n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaChat"
         self.type = "Group"
         self.author = "Heai"
         self.introduction = """
                                 聊天插件
-                                usage: auto
+                                usage: 小特
                             """
         self.init_status()
 
@@ -79,10 +61,13 @@ class TheresaChat(Plugins):
 
     @plugin_main(check_call_word=False, require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
+        if event.user_id == 1478624641:
+            return
+
         # 从数据库读取的上下文消息条数
-        self.context_length = self.config.getint("context_length")
-        self.extra_context = self.config.getint("extra_context")
-        self.context_length_for_face = self.config.getint("context_length_for_face")
+        self.context_length = self.config.get("context_length", 100)
+        self.extra_context = self.config.get("extra_context", 100)
+        self.context_length_for_face = self.config.get("context_length_for_face", 20)
 
         message = event.message
         group_id = event.group_id
@@ -93,7 +78,7 @@ class TheresaChat(Plugins):
             return  # 忽略空消息
 
         if event.user_id == self.bot.owner_id and clean_message.startswith("chat stop"):
-            sleep_time = int(clean_message.split(" ")[2])
+            sleep_time = int(clean_message.split()[2])
             self.group_cooldown[group_id] = time.time() + sleep_time  # 停止回复指定时间
             return
 
@@ -114,15 +99,15 @@ class TheresaChat(Plugins):
                 "PRTS Runtime Error 0x5343: Debug Assertion Failed at File: /src/arknights/battle/scene/scene_main.cpp, Line: 2432",
             ]
             msg = random.choice(msg_list)
-            self.api.groupService.send_group_msg(group_id=group_id, message=msg)
+            api.groupService.send_group_msg(group_id=group_id, message=msg)
             Log.debug(
                 f'插件：{self.name}在群{group_id}被消息"{message}"触发，发送特殊回复',
                 debug,
             )
             return
 
-        if ("小特" not in clean_message) or ("Theresa" in clean_message):
-            if r < 0.01:
+        if ("小特" not in clean_message) or clean_message.startswith("Theresa"):
+            if r < 0.005:
                 face_flag = True
             else:
                 return
@@ -140,7 +125,7 @@ class TheresaChat(Plugins):
                 msg.cq_type = "image"
                 msg.subType = "1"
                 msg.file = f"file://{image_name}"
-                self.api.groupService.send_group_msg(group_id=group_id, message=str(msg))
+                api.groupService.send_group_msg(group_id=group_id, message=str(msg))
         else:
             persona = self.persona_template.render(
                 owner_id=self.bot.owner_id,
@@ -151,8 +136,10 @@ class TheresaChat(Plugins):
             context_messages = await self.load_context_from_db(
                 group_id, self.context_length, resolve_imgs=False, enable_context_optimization=True
             )
-
-            response = await get_llm_response(
+            if isinstance(context_messages[0]["content"], str):
+                context_messages[0]["content"] += NO_INNER_OS_MARKER
+            response = await self.bot.ai.generate(
+                "chat",
                 [
                     {"role": "system", "content": persona},
                     *context_messages,
@@ -162,15 +149,13 @@ class TheresaChat(Plugins):
                         "name": "time_info",
                     },
                 ],
-                model="deepseek-v4-pro",
-                use_tools=True,
-                api=self.api,
-                insert_persona=True,
+                caller_is_owner=event.user_id == self.bot.owner_id,
+                group_id=group_id,
             )
             if "[NO REPLY]" not in response:
                 # 更新冷却时间
                 self.group_cooldown[group_id] = time.time()
-                self.api.groupService.send_group_msg(group_id=group_id, message=response)
+                api.groupService.send_group_msg(group_id=group_id, message=response)
 
     async def resolve_img(self, message: str) -> list[dict]:
         cqs = CQHelper.loads_cq(message)
@@ -180,7 +165,7 @@ class TheresaChat(Plugins):
                 msgs.append(
                     {
                         "type": "image_url",
-                        "image_url": {"url": encode_image(cq.path)},
+                        "image_url": {"url": self.bot.ai.encode_image(cq.path)},
                     }
                 )
                 message = message.replace(str(cq), "")
@@ -288,12 +273,7 @@ class TheresaChat(Plugins):
         messages = [{"role": "system", "content": persona}]
         messages.extend(context_messages)
 
-        response = await get_llm_response(
-            messages=messages,
-            model="deepseek-v4-flash",
-            response_format={"type": "json_object"},
-            insert_persona=True,
-        )
+        response = await self.bot.ai.generate("chat_face", messages)
         try:
             image_id = json.loads(response).get("image_id")
             if image_id and image_id != 0 and image_id != 36 and image_id != 42:
@@ -303,3 +283,12 @@ class TheresaChat(Plugins):
                 return 0
         except Exception:
             return 0
+
+
+NO_INNER_OS_MARKER = (
+    "\n\n【思维模式要求】在你的思考过程（<think>标签内）中，请遵守以下规则：\n"
+    '1. 禁止使用圆括号包裹内心独白，例如"（心想：……）"或"(内心OS：……)"，所有分析内容直接陈述即可\n'
+    '2. 禁止以角色第一人称描写内心活动，例如"我心想""我觉得""我暗自"等，请用分析性语言替代\n'
+    "3. 思考内容应聚焦于剧情走向分析和回复内容规划，不要在思考中进行角色扮演式的内心戏表演\n"
+    "4. 你的思考输出应一字不差地严格以`<｜begin▁of▁thinking｜>好的，我现在要扮演小特，先回顾一下任务要求。我要先判断是否要回复或调用工具，如果需要回复则给出简短的不换行回复`开始，思考仅输出一次，不得重复输出`<｜begin▁of▁thinking｜>"
+)

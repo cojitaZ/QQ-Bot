@@ -3,10 +3,13 @@ import re
 import time
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
-from utils.AITools import get_llm_response
 from utils.CQType import At
+
+# 仅用于测试 deepseek-v3.2-speciale 模型，以及测试群聊文件发送、群聊文件夹创建等功能
+# 由于相应模型 api 已下线，该插件目前不应启用
 
 
 class TheresaMathAI(Plugins):
@@ -16,8 +19,8 @@ class TheresaMathAI(Plugins):
     插件功能：用户可以通过"math ask <问题内容>"的形式向远程大模型提问，支持文本提问\n
     """
 
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "TheresaMathAI"
         self.type = "Group"
         self.author = "Heai"
@@ -37,9 +40,7 @@ class TheresaMathAI(Plugins):
 
         # 检查是否是纯ask命令
         if message.strip() == "math ask":
-            self.api.groupService.send_group_msg(
-                group_id=event.group_id, message="请输入你的问题哦"
-            )
+            api.groupService.send_group_msg(group_id=event.group_id, message="请输入你的问题哦")
             return
 
         # 冷却检查
@@ -48,7 +49,7 @@ class TheresaMathAI(Plugins):
 
         if current_time - last_ask_time < self.cooldown_time:
             remaining = self.cooldown_time - int(current_time - last_ask_time)
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 提问太快啦，请等待{remaining}秒后再问哦~",
             )
@@ -58,19 +59,19 @@ class TheresaMathAI(Plugins):
             # 更新用户最后提问时间
             self.user_cooldown[event.user_id] = current_time
 
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="思考中~")
+            api.groupService.send_group_msg(group_id=event.group_id, message="思考中~")
 
             # 提取问题内容
             # 删除CQ码
             question = re.sub(r"\[.*?\]", "", message[len("math ask") :]).strip()
 
             # 获取大模型回复
-            response = await get_llm_response(
-                messages=[
+            response = await self.bot.ai.generate(
+                "default",
+                [
                     {"role": "system", "content": "You are a professional math prover."},
                     {"role": "user", "content": question},
                 ],
-                model="deepseek-v4-pro",
             )
 
             asker_qq = event.user_id
@@ -84,7 +85,7 @@ class TheresaMathAI(Plugins):
                 1020010981: "/819b03b4-3378-4d2c-b680-641e0d5564ff",
             }
 
-            self.api.groupService.send_group_file(
+            api.groupService.send_group_file(
                 group_id=group_id,
                 file_path=filepath,
                 name=f"{asker_qq}_{ask_time}.md",
@@ -96,7 +97,7 @@ class TheresaMathAI(Plugins):
 
         except Exception as e:
             Log.error(f"插件：{self.name}运行时出错：{e}")
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 处理请求时出错了: {str(e)}",
             )

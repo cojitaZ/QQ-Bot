@@ -1,41 +1,20 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import BigInteger, Column, DateTime, Integer, Text, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import AskMessage, Message
 from utils.CQHelper import CQHelper
 from utils.CQType import CQMessage, Forward, Reply
 
-Base = declarative_base()
-
-
-class AskMessage(Base):
-    __tablename__ = "ask_messages"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    discussion_id = Column(Integer, nullable=False)
-    id_of_message = Column(BigInteger, nullable=False, unique=True)
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False)
-    group_id = Column(BigInteger, nullable=False)
-    msg = Column(Text, nullable=False)
-    send_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    msg_id = Column(BigInteger, nullable=False, default=0)
-    user_nickname = Column(Text, nullable=False, default=" ")
-    user_card = Column(Text, nullable=False, default=" ")
-
 
 class AskForward(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "AskForward"
         self.type = "Group"
         self.author = "Heai"
@@ -47,16 +26,16 @@ class AskForward(Plugins):
         self.session_factory: sessionmaker = sessionmaker(
             bind=self.bot.database, class_=AsyncSession, expire_on_commit=False
         )
-        self.special_assistant_list: set[int] = set()
+        self.special_assistant_list: set[int] = set()  # 不转发消息的，不在助教群的助教
 
     @plugin_main(check_call_word=False, require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
-        broadcast_target_group: int = self.config.getint("broadcast_target_group")
-        answer_group: int = self.config.getint("answer_group")
-        ask_groups: list[int] = list(map(int, self.config.get("ask_groups").split(",")))
-        self.special_assistant_list: set[int] = set(
-            map(int, self.config.get("special_assistant_list", "").split(","))
-        )
+        if event.message.startswith("Theresa "):
+            return
+        broadcast_target_group: int = self.config.get("broadcast_target_group", 0)
+        answer_group: int = self.config.get("answer_group", 0)
+        ask_groups: list[int] = self.config.get("ask_groups", [])
+        self.special_assistant_list: set[int] = set(self.config.get("special_assistant_list", []))
 
         check_message = event.message.strip()
         while check_message.startswith("[CQ:image,"):
@@ -86,7 +65,7 @@ class AskForward(Plugins):
                     session.add(ask_message)
                 await session.commit()
 
-            self.api.groupService.send_group_forward_msg(
+            api.groupService.send_group_forward_msg(
                 group_id=answer_group, forward_message=forward_msg.message
             )
             await self.forward_message(
@@ -188,7 +167,7 @@ class AskForward(Plugins):
                         sender_name=row[2],
                         uid=row[1],
                     )
-            self.api.groupService.send_group_forward_msg(
+            api.groupService.send_group_forward_msg(
                 group_id=broadcast_target_group, forward_message=broadcast_msg.message
             )
         return
@@ -222,7 +201,7 @@ class AskForward(Plugins):
         reply_id: int | None = None,
         discussion_id: int | None = None,
     ) -> None:
-        self.api.groupService.send_group_msg(
+        api.groupService.send_group_msg(
             group_id=target_group_id,
             message=f"{Reply(id=reply_id) if reply_id is not None else ''}#{discussion_id if discussion_id is not None else 'None'} {event.sql_id} from {event.group_name if keep_group_name else '答疑'}\n{(event.card + '\n') if keep_card else ''}{remove_reply(clean_at(event.message, True))}",
         )

@@ -8,8 +8,8 @@ from utils.CQType import Forward
 
 
 class Api:
-    def __init__(self, server_address):
-        self.bot_api_address = f"http://{server_address}/"
+    def __init__(self):
+        self.bot_api_address: str = ""
 
         # 传递Api类的实例引用
         self.botSelfInfo: Api.BotSelfInfo = self.BotSelfInfo(self)
@@ -17,6 +17,9 @@ class Api:
         self.groupService: Api.GroupService = self.GroupService(self)
         self.messageService: Api.MessageService = self.MessageService(self)
         self.asyncService: Api.AsyncService = self.AsyncService(self)
+
+    def set_server_address(self, server_address: str):
+        self.bot_api_address = f"http://{server_address}/"
 
     class BotSelfInfo:
         def __init__(self, api_instance):
@@ -72,7 +75,7 @@ class Api:
             )
             return response.json()
 
-        def send_group_msg(self, group_id: int, message: str) -> dict:
+        def send_group_msg(self, group_id: int, message: str | list[dict]) -> dict:
             params = {"group_id": group_id, "message": message}
             response = requests.post(self.api.bot_api_address + "send_group_msg", json=params)
             return response.json()
@@ -227,6 +230,23 @@ class Api:
 
             return response.json()
 
+        async def send_group_msg(self, group_id: int, message: str | list[dict]) -> dict:
+            params = {"group_id": group_id, "message": message}
+            response = await self.client.post(
+                self.api.bot_api_address + "send_group_msg", json=params
+            )
+            return response.json()
+
+        async def send_group_img(self, group_id: int, image_path: str) -> dict:
+            params = {
+                "group_id": group_id,
+                "message": [{"type": "image", "data": {"file": f"file://{image_path}"}}],
+            }
+            response = await self.client.post(
+                self.api.bot_api_address + "send_group_msg", json=params
+            )
+            return response.json()
+
         async def send_group_forward_msg(self, group_id: int, forward_message: list) -> dict:
             params = {"group_id": group_id, "messages": forward_message}
             response = await self.client.post(
@@ -259,6 +279,11 @@ class Api:
             response = requests.post(self.api.bot_api_address + "get_image", json=params)
             return response.json()
 
+        def get_group_file_url(self, group_id: int, file_id: str) -> dict:
+            params = {"group_id": group_id, "file_id": file_id}
+            response = requests.post(self.api.bot_api_address + "get_group_file_url", json=params)
+            return response.json()
+
         def get_forward(self, message_id: int) -> list:
             """使用这个函数得到的结果可以直接由 send_forward_message 发出"""
             params = {"message_id": message_id}
@@ -281,3 +306,6 @@ class Api:
                     msg=msg,
                 )
             return return_dict.message
+
+
+api: Api = Api()

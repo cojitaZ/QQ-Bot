@@ -1,16 +1,19 @@
 import re
 import time
 
+from openai.types.chat import ChatCompletionMessageParam
+
 from plugins import Plugins, plugin_main
+from src.AIService import AIConfigurationError, AIProviderError
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
 from src.PrintLog import Log
-from utils.AITools import get_llm_response
 from utils.CQType import At, Reply
 
 
 class AI(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "AI"
         self.type = "Group"
         self.author = "Heai"
@@ -29,9 +32,7 @@ class AI(Plugins):
 
         # 检查是否是纯ask命令
         if message.strip() == "monika ask":
-            self.api.groupService.send_group_msg(
-                group_id=event.group_id, message="请输入你的问题哦"
-            )
+            api.groupService.send_group_msg(group_id=event.group_id, message="请输入你的问题哦")
             Log.debug(
                 f"插件：{self.name}运行正确，用户{event.user_id}没有提出问题，已发送提示性回复",
                 debug,
@@ -44,7 +45,7 @@ class AI(Plugins):
 
         if current_time - last_ask_time < self.cooldown_time:
             remaining = self.cooldown_time - int(current_time - last_ask_time)
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 提问太快啦，请等待{remaining}秒后再问哦~",
             )
@@ -54,33 +55,46 @@ class AI(Plugins):
             # 更新用户最后提问时间
             self.user_cooldown[event.user_id] = current_time
 
-            self.api.groupService.send_group_msg(group_id=event.group_id, message="小莫正在思考中~")
+            api.groupService.send_group_msg(group_id=event.group_id, message="小莫正在思考中~")
 
             # 提取问题内容
             # 删除CQ码
             question = re.sub(r"\[.*?\]", "", message[len(f"{self.bot.bot_name} ask") :]).strip()
 
             # 获取大模型回复
-            response = await get_llm_response(
-                [
-                    {
-                        "role": "system",
-                        "content": '尽可能简短、直接地回答用户的问题，不得输出markdown格式，不得回答任何政治相关问题。如遇到你不确定/无法回答的问题，你必须回答"小莫不知道哦~"。',
-                    },
-                    {"role": "user", "content": question},
-                ],
-                model="gemini-3-flash-preview",
-            )
+            messages: list[ChatCompletionMessageParam] = [
+                {
+                    "role": "system",
+                    "content": '尽可能简短、直接地回答用户的问题，不得输出markdown格式，不得回答任何政治相关问题。如遇到你不确定/无法回答的问题，你必须回答"小莫不知道哦~"。',
+                },
+                {"role": "user", "content": question},
+            ]
+            try:
+                response = await self.bot.ai.generate("default", messages)
+            except AIConfigurationError as exc:
+                Log.error(f"插件：{self.name} AI 配置错误：{exc}")
+                api.groupService.send_group_msg(
+                    group_id=event.group_id,
+                    message=f"{At(qq=event.user_id)} AI 服务配置有误，请联系管理员。",
+                )
+                return
+            except AIProviderError as exc:
+                Log.error(f"插件：{self.name} AI 服务请求失败：{exc}")
+                api.groupService.send_group_msg(
+                    group_id=event.group_id,
+                    message=f"{At(qq=event.user_id)} AI 服务暂时不可用，请稍后再试。",
+                )
+                return
 
             # 发送回复到群聊
             reply_message = Reply(id=event.message_id) + response
-            self.api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
+            api.groupService.send_group_msg(group_id=event.group_id, message=reply_message)
 
             Log.debug(f"插件：{self.name}回答用户{event.user_id}的问题{question}", debug)
 
         except Exception as e:
             Log.error(f"插件：{self.name}运行时出错：{e}")
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message=f"{At(qq=event.user_id)} 处理请求时出错了: {str(e)}",
             )

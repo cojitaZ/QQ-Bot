@@ -1,16 +1,25 @@
 import os
 
-from sqlalchemy import Column, Integer, Text, delete, insert
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import LineCounts, Scores, StuList
 
 
 class DataImport(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    table_models = {
+        "scores": Scores,
+        "linecounts": LineCounts,
+        "stulists": StuList,
+        "stulists_detail": StuList,
+    }
+
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "DataImport"
         self.type = "Group"
         self.author = "Heai"
@@ -19,31 +28,9 @@ class DataImport(Plugins):
                                 usage: DataImport scores/linecounts/stulists/stulists_detail <学期课程编号>
                             """
         self.init_status()
-        self.models = {}
         self.session_factory = sessionmaker(
             bind=self.bot.database, class_=AsyncSession, expire_on_commit=False
         )
-
-    def get_model(self, table_name: str):
-        if table_name in self.models:
-            return self.models[table_name]
-
-        class DynamicModel(self.Basement):
-            __tablename__ = table_name
-            __table_args__ = {"extend_existing": True}
-            semester = Column(Integer, primary_key=True)
-            stu_id = Column(Integer, primary_key=True)
-            if table_name == "scores":
-                score = Column(Integer, nullable=False)
-            elif table_name == "linecounts":
-                count = Column(Integer, nullable=False)
-                rank = Column(Integer, nullable=False)
-            elif table_name == "stulists":
-                name = Column(Text, nullable=False)
-                class_ = Column("class", Integer, nullable=True, default=0)
-
-        self.models[table_name] = DynamicModel
-        return DynamicModel
 
     @plugin_main(call_word=["DataImport"], require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
@@ -52,14 +39,14 @@ class DataImport(Plugins):
         if not event.user_id == self.bot.owner_id:
             return
 
-        table_name = message.split(" ")[1]
+        table_name = message.split()[1]
         if table_name not in ["scores", "linecounts", "stulists", "stulists_detail"]:
-            self.api.groupService.send_group_msg(
+            api.groupService.send_group_msg(
                 group_id=event.group_id,
                 message="表名错误，请使用 scores、linecounts、stulists 或 stulists_detail",
             )
             return
-        semester = int(message.split(" ")[2])
+        semester = int(message.split()[2])
         filename = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             "data",
@@ -70,16 +57,12 @@ class DataImport(Plugins):
         with open(filename, encoding="utf-8") as f:
             lines = f.readlines()
 
-        self.api.groupService.send_group_msg(
+        api.groupService.send_group_msg(
             group_id=event.group_id,
             message=f"正在向表 {table_name} 导入学期 {semester} 的 {len(lines)} 条数据",
         )
 
-        model = (
-            self.get_model(table_name)
-            if table_name != "stulists_detail"
-            else self.get_model("stulists")
-        )
+        model = self.table_models[table_name]
         rows: list[dict] = []
         delimiter = "\t" if "\t" in lines[0] else " "
 
@@ -126,5 +109,3 @@ class DataImport(Plugins):
                 await session.execute(delete(model).where(model.semester == semester))
                 await session.execute(insert(model), rows)
         return
-
-    Basement = declarative_base()

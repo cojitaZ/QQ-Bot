@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from src.Api import api
+
 total_lines_read = 0
 last_cleared_line = 0
 
@@ -97,7 +99,6 @@ def create_web_app(web_controller):
 class WebController:
     def __init__(self, bot):
         self.bot = bot
-        self.api = bot.api
         self._server = None
 
     async def run(self, ip, port):
@@ -111,7 +112,7 @@ class WebController:
             self._server.should_exit = True
 
     def get_bot_info(self):
-        login_info = self.api.botSelfInfo.get_login_info().get("data")
+        login_info = api.botSelfInfo.get_login_info().get("data")
         user_id = login_info.get("user_id")
         nickname = login_info.get("nickname")
         response = requests.get(f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100")

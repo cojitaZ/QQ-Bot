@@ -1,42 +1,23 @@
 import json
 import os
-from datetime import timedelta, timezone
 
 from jinja2 import Template
-from sqlalchemy import BigInteger, Column, DateTime, Text, desc, func, select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from plugins import Plugins, plugin_main
+from src.Api import api
 from src.event_handler.GroupMessageEventHandler import GroupMessageEvent
+from src.Models import Message
 from src.PrintLog import Log
-from utils.AITools import encode_image, get_llm_response
 from utils.CQHelper import CQHelper
 from utils.CQType import Forward
 
-Base = declarative_base()
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False)
-    group_id = Column(BigInteger, nullable=False)
-    msg = Column(Text, nullable=False)
-    send_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    msg_id = Column(BigInteger, nullable=False, default=0)
-    user_nickname = Column(Text, nullable=False, default=" ")
-    user_card = Column(Text, nullable=False, default=" ")
-
-    @property
-    def formatted_time(self) -> str:
-        return self.send_time.astimezone(timezone(timedelta(hours=8))).strftime("%H:%M")
-
 
 class GroupSum(Plugins):
-    def __init__(self, server_address, bot):
-        super().__init__(server_address, bot)
+    def __init__(self, bot):
+        super().__init__(bot)
         self.name = "GroupSum"
         self.type = "Group"
         self.author = "Heai"
@@ -55,9 +36,9 @@ class GroupSum(Plugins):
 
     @plugin_main(call_word=["Summary"], require_db=True)
     async def main(self, event: GroupMessageEvent, debug: bool):
-        self.max_length = self.config.getint("max_length")
+        self.max_length = self.config.get("max_length", 1000)
 
-        msg = event.message.strip().split(" ")
+        msg = event.message.strip().split()
         if len(msg) != 2 or not msg[1].isdigit():
             return
 
@@ -77,16 +58,12 @@ class GroupSum(Plugins):
             resolve_imgs=False,
         )
 
-        response = await get_llm_response(
+        response = await self.bot.ai.generate(
+            "group_sum",
             [
                 {"role": "system", "content": persona},
                 *context_messages,
             ],
-            model="deepseek-v4-pro",
-            use_tools=True,
-            api=self.api,
-            response_format={"type": "json_object"},
-            insert_persona=True,
         )
 
         response_json: dict = json.loads(response)
@@ -99,10 +76,10 @@ class GroupSum(Plugins):
         for topic in response_json.get("topics", []):
             message.add_node(
                 type="msg",
-                msg=f"话题：{topic.get('topic', '无')}\n参与者：{', '.join(topic.get('contributors', ['无']))}\n详情：{topic.get('detail', '无')}",
+                msg=f"话题：{topic.get('topic', '无')}\n参与者：{', '.join(map(str, topic.get('contributors', ['无'])))}\n详情：{topic.get('detail', '无')}",
             )
 
-        self.api.groupService.send_group_forward_msg(
+        api.groupService.send_group_forward_msg(
             group_id=event.group_id, forward_message=message.message
         )
         Log.debug(f"插件：{self.name}在群{event.group_id}完成总结并发送消息", debug)
@@ -116,7 +93,7 @@ class GroupSum(Plugins):
                 msgs.append(
                     {
                         "type": "image_url",
-                        "image_url": {"url": encode_image(cq.path)},
+                        "image_url": {"url": self.bot.ai.encode_image(cq.path)},
                     }
                 )
                 message = message.replace(str(cq), "")
