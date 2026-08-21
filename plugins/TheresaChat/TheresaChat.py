@@ -134,7 +134,7 @@ class TheresaChat(Plugins):
             )
 
             context_messages = await self.load_context_from_db(
-                group_id, self.context_length, resolve_imgs=False, enable_context_optimization=True
+                group_id, self.context_length, resolve_imgs=True, enable_context_optimization=True
             )
             if isinstance(context_messages[0]["content"], str):
                 context_messages[0]["content"] += NO_INNER_OS_MARKER
@@ -235,7 +235,7 @@ class TheresaChat(Plugins):
                 else:
                     msg = await self.resolve_reply(session, row.msg)
                     if resolve_imgs:
-                        img_msgs = await self.resolve_img(row.msg)
+                        img_msgs = await self.resolve_img(msg)
                         img_msgs.insert(
                             0,
                             {
