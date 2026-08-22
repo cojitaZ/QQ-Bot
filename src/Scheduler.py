@@ -11,7 +11,7 @@ class Scheduler:
         self.configs_path = configs_path
         self._scheduler = AsyncIOScheduler()
 
-    def register_tasks(self) -> None:
+    def register_tasks(self) -> bool:
         config = self._load_config()
 
         for section, section_config in config.items():
@@ -32,6 +32,10 @@ class Scheduler:
         if self._scheduler.get_jobs():
             self._scheduler.start()
             Log.info("定时任务调度器已启动")
+            return True
+        else:
+            Log.info("没有启用的定时任务，调度器未启动")
+            return False
 
     def _load_config(self) -> dict:
         config_path = os.path.join(self.configs_path, "scheduler.toml")
