@@ -279,7 +279,7 @@ class Bot:
 
         webhook_handler = None
         scheduler = Scheduler(self.configs_path)
-        scheduler.register_tasks()
+        scheduler_started = scheduler.register_tasks()
         if self.enable_webhook_handler:
             webhook_handler = WebhookHandler(
                 self.webhook_response_group,
@@ -306,7 +306,8 @@ class Bot:
             await event.stop()
             if webhook_handler is not None:
                 await webhook_handler.stop()
-            await scheduler.stop()
+            if scheduler_started:
+                await scheduler.stop()
 
 
 def check_config_files(configs_path: str) -> None:

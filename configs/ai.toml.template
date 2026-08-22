@@ -39,7 +39,7 @@ insert_persona = true
 
 [profile.chat]
 provider = "deepseek"
-model = "deepseek-v4-pro"
+model = "deepseek-v4-flash-vision-exp"
 tools = ["send_private_msg", "get_group_member_list", "get_group_member_info", "set_group_ban", "set_group_kick", "get_group_info", "send_group_poke", "shell"]
 max_turns = 10
 insert_persona = true
