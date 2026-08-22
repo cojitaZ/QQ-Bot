@@ -28,6 +28,8 @@ jobs:
         steps:
             - name: Checkout Code
               uses: actions/checkout@v6
+              with:
+                  lfs: true
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v4
@@ -64,7 +66,7 @@ jobs:
             - name: Package Files
               run: |
                   mkdir -p dist
-                  tar -czvf dist/docker-compose-${{ inputs.version }}.tar.gz README.md compose.yaml configs/*.template scripts/docker_compose_init.sh
+                  tar -czvf dist/Theresa-${{ inputs.version }}-Docker.tar.gz README.md compose.yaml configs/*.template scripts/docker_compose_init.sh
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v3
@@ -72,7 +74,7 @@ jobs:
                   tag_name: ${{ inputs.version }}
                   body: |
                       ${{ inputs.description }}
-                      Download: `curl -LO https://github.com/crane-fog/QQ-Bot/releases/download/${{ inputs.version }}/docker-compose-${{ inputs.version }}.tar.gz`
+                      Download: `curl -LO https://github.com/crane-fog/QQ-Bot/releases/download/${{ inputs.version }}/Theresa-${{ inputs.version }}-Docker.tar.gz`
                   working_directory: dist
                   files: |
-                      docker-compose-${{ inputs.version }}.tar.gz
+                      Theresa-${{ inputs.version }}-Docker.tar.gz
