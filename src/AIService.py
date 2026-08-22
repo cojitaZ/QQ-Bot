@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 import subprocess
@@ -9,6 +10,7 @@ import tomlkit
 from openai import AsyncOpenAI
 from openai._types import NotGiven, Omit, not_given, omit
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolUnionParam
+from PIL import Image
 
 from src.Api import api
 from src.PrintLog import Log
@@ -248,11 +250,56 @@ class AIService:
         return value
 
     @staticmethod
-    def encode_image(image_path: str) -> str:
+    def encode_image(image_path: str, max_kb: int | None = None) -> str:
         extension = os.path.splitext(image_path)[1].lower().replace(".", "")
         if extension in ["png", "webp", "gif"]:
             mime_type = f"image/{extension}"
         else:
             mime_type = "image/jpeg"
         with open(image_path, "rb") as f:
-            return f"data:{mime_type};base64,{base64.b64encode(f.read()).decode('utf-8')}"
+            image_data = f.read()
+
+        if max_kb is None or max_kb <= 0 or len(image_data) <= max_kb * 1024:
+            return f"data:{mime_type};base64,{base64.b64encode(image_data).decode('utf-8')}"
+
+        # 超过大小限制，压缩
+        Log.debug(f"图片大小 {len(image_data)} bytes 触发压缩")
+        target_bytes = int(max_kb * 1024)
+        img = Image.open(io.BytesIO(image_data))
+        if img.mode != "RGB":
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGBA")
+                bg = Image.new("RGB", img.size, (255, 255, 255))
+                bg.paste(img, mask=img.split()[3])
+                img = bg
+            else:
+                img = img.convert("RGB")
+
+        quality = 90
+        scale = 1.0
+        while True:
+            buffer = io.BytesIO()
+            if scale < 1.0:
+                new_width = max(1, int(img.width * scale))
+                new_height = max(1, int(img.height * scale))
+                curr_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            else:
+                curr_img = img
+
+            curr_img.save(buffer, format="JPEG", quality=quality, optimize=True)
+            compressed_data = buffer.getvalue()
+            if len(compressed_data) <= target_bytes:
+                image_data = compressed_data
+                break
+
+            if quality > 30:
+                quality -= 10
+            else:
+                scale *= 0.8
+                quality = 80
+
+            if scale < 0.05:
+                image_data = compressed_data
+                break
+
+        return f"data:image/jpeg;base64,{base64.b64encode(image_data).decode('utf-8')}"

@@ -165,7 +165,7 @@ class TheresaChat(Plugins):
                 msgs.append(
                     {
                         "type": "image_url",
-                        "image_url": {"url": self.bot.ai.encode_image(cq.path)},
+                        "image_url": {"url": self.bot.ai.encode_image(cq.path, 1024)},
                     }
                 )
                 message = message.replace(str(cq), "")
